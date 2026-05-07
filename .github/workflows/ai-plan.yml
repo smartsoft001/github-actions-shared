@@ -1,0 +1,164 @@
+name: AI Plan (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      issue_id:
+        description: 'Linear issue identifier (e.g. GAL-123)'
+        required: true
+        type: string
+      plan_command:
+        description: 'Plan command variant: /plan, /flow:plan, /flow-legacy:plan, /flow-external:plan'
+        required: false
+        type: string
+        default: '/flow:plan'
+      base_branch:
+        description: 'Branch to checkout in caller repo'
+        required: false
+        type: string
+        default: 'development'
+      node_version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      model:
+        description: 'Claude model'
+        required: false
+        type: string
+        default: 'claude-opus-4-7'
+      max_turns:
+        description: 'Max turns for Claude'
+        required: false
+        type: number
+        default: 100
+      install_plugins:
+        description: |
+          Czy rejestrować marketplaces i instalować pluginy Claude Code.
+          true (default) — uruchamia oba kroki używając wartości z plugins_install / marketplaces_register.
+          false — pomija oba kroki (np. dla repo używających goły /plan bez pluginów).
+        required: false
+        type: boolean
+        default: true
+      plugins_install:
+        description: |
+          Multi-line list of plugins to install via "claude plugin install".
+          Format: jeden plugin per linia, np.:
+            smart@smartsoft --scope project
+            flow@mobilems --scope project
+          Default odpowiada konfiguracji muzeum-swiatowid (smart + flow).
+          Ignorowane gdy install_plugins=false.
+        required: false
+        type: string
+        default: |
+          smart@smartsoft --scope project
+          flow@mobilems --scope project
+      marketplaces_register:
+        description: |
+          Multi-line list of plugin marketplaces to register via "claude plugin marketplace add".
+          Format: jeden path per linia. Default zakłada że oba pakiety są w node_modules
+          po npm ci (czyli są zadeklarowane w package.json caller repo).
+          Ignorowane gdy install_plugins=false.
+        required: false
+        type: string
+        default: |
+          ./node_modules/@smartsoft001/claude-plugins
+          ./node_modules/@smartsoft001-mobilems/claude-plugins
+
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+      LINEAR_API_KEY:
+        required: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+      issues: write
+
+    env:
+      ISSUE_ID: ${{ inputs.issue_id }}
+      PLAN_COMMAND: ${{ inputs.plan_command }}
+
+    steps:
+      - name: Validate inputs & secrets
+        run: |
+          if [ -z "$ISSUE_ID" ]; then
+            echo "::error::Missing issue_id"
+            exit 1
+          fi
+          case "$PLAN_COMMAND" in
+            "/plan"|"/flow:plan"|"/flow-legacy:plan"|"/flow-external:plan") ;;
+            *)
+              echo "::error::Invalid plan_command: $PLAN_COMMAND"
+              echo "Allowed: /plan, /flow:plan, /flow-legacy:plan, /flow-external:plan"
+              exit 1
+              ;;
+          esac
+          echo "Planning $ISSUE_ID using $PLAN_COMMAND on branch ${{ inputs.base_branch }}"
+          echo "install_plugins: ${{ inputs.install_plugins }}"
+          if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN not set — should hold OAuth token from 'claude setup-token'"
+            exit 1
+          fi
+          if [ -z "${{ secrets.LINEAR_API_KEY }}" ]; then
+            echo "::warning::LINEAR_API_KEY not set — Linear MCP will fail"
+          fi
+
+      - name: Checkout caller repo
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Register plugin marketplaces
+        if: ${{ inputs.install_plugins }}
+        env:
+          MARKETPLACES: ${{ inputs.marketplaces_register }}
+        run: |
+          while IFS= read -r marketplace; do
+            [ -z "$marketplace" ] && continue
+            echo "Registering marketplace: $marketplace"
+            claude plugin marketplace add "$marketplace"
+          done <<< "$MARKETPLACES"
+
+      - name: Install project plugins
+        if: ${{ inputs.install_plugins }}
+        env:
+          PLUGINS: ${{ inputs.plugins_install }}
+        run: |
+          while IFS= read -r plugin; do
+            [ -z "$plugin" ] && continue
+            echo "Installing plugin: $plugin"
+            claude plugin install $plugin
+          done <<< "$PLUGINS"
+
+      - name: Run plan command
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          claude --print "$PLAN_COMMAND $ISSUE_ID --auto" \
+            --model ${{ inputs.model }} \
+            --max-turns ${{ inputs.max_turns }} \
+            --dangerously-skip-permissions \
+            --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash,mcp__linear"
