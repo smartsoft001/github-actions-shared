@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: '/flow:commit'
+      node_legacy:
+        description: 'Node.js legacy peer deps install'
+        required: false
+        type: boolean
+        default: false
       node_version:
         description: 'Node.js version'
         required: false
@@ -166,7 +171,12 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
+        if: ${{ !inputs.node_legacy }}
         run: npm ci
+
+      - name: Install dependencies
+        if: ${{ inputs.node_legacy }}
+        run: npm ci --legacy-peer-deps
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
