@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: '/flow:commit'
+      push_command:
+        description: 'Push command variant: /push, /flow:push, /flow-legacy:push, /flow-external:push'
+        required: false
+        type: string
+        default: '/flow:push'
       node_legacy:
         description: 'Node.js legacy peer deps install'
         required: false
@@ -44,6 +49,11 @@ on:
         default: 200
       max_turns_commit:
         description: 'Max turns for /commit'
+        required: false
+        type: number
+        default: 50
+      max_turns_push:
+        description: 'Max turns for /push'
         required: false
         type: number
         default: 50
@@ -101,6 +111,7 @@ jobs:
       BASE_BRANCH: ${{ inputs.base_branch }}
       IMPL_COMMAND: ${{ inputs.impl_command }}
       COMMIT_COMMAND: ${{ inputs.commit_command }}
+      PUSH_COMMAND: ${{ inputs.push_command }}
       ALLOWED_TOOLS: >-
         Read,Write,Edit,Glob,Grep,Bash,
         Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*),
@@ -249,16 +260,18 @@ jobs:
             --dangerously-skip-permissions \
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
             --allowedTools "$ALLOWED_TOOLS"
-
-      - name: Push branch
+            
+      - name: Run push command
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
-          # /flow:commit has already committed. This step only pushes.
-          # If there are no commits ahead of base_branch — exit 0 with a warning.
-          if [ -z "$(git log origin/$BASE_BRANCH..HEAD --oneline 2>/dev/null)" ]; then
-            echo "::warning::No commits ahead of $BASE_BRANCH — claude commands didn't produce changes"
-            exit 0
-          fi
-          git push -u origin "$BRANCH_NAME"
+          claude --print "$PUSH_COMMAND $ISSUE_ID --auto" \
+            --model ${{ inputs.model }} \
+            --max-turns ${{ inputs.max_turns_push }} \
+            --dangerously-skip-permissions \
+            --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
+            --allowedTools "$ALLOWED_TOOLS"
 
       - name: Create or update PR
         env:
