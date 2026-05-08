@@ -174,7 +174,7 @@ jobs:
         if: ${{ !inputs.node_legacy }}
         run: npm ci
 
-      - name: Install dependencies
+      - name: Install dependencies (legacy peer deps)
         if: ${{ inputs.node_legacy }}
         run: npm ci --legacy-peer-deps
 
