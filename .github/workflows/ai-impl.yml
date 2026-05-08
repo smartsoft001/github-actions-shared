@@ -101,6 +101,14 @@ jobs:
       BASE_BRANCH: ${{ inputs.base_branch }}
       IMPL_COMMAND: ${{ inputs.impl_command }}
       COMMIT_COMMAND: ${{ inputs.commit_command }}
+      ALLOWED_TOOLS: >-
+        Read,Write,Edit,Glob,Grep,Bash,
+        Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*),
+        Skill(plan),Skill(impl),Skill(commit),Skill(push),Skill(review),
+        Skill(flow:plan),Skill(flow:impl),Skill(flow:commit),Skill(flow:push),Skill(flow:review),
+        Skill(flow-legacy:plan),Skill(flow-legacy:impl),Skill(flow-legacy:commit),Skill(flow-legacy:push),Skill(flow-legacy:review),
+        Skill(flow-external:plan),Skill(flow-external:impl),Skill(flow-external:commit),Skill(flow-external:push),Skill(flow-external:review),
+        mcp__linear
 
     steps:
       - name: Validate inputs and secrets
@@ -213,7 +221,7 @@ jobs:
             --max-turns ${{ inputs.max_turns_impl }} \
             --dangerously-skip-permissions \
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
-            --allowedTools "Read,Write,Edit,Glob,Grep,Bash,mcp__linear"
+            --allowedTools "$ALLOWED_TOOLS"
 
       - name: Run commit command
         env:
@@ -225,7 +233,7 @@ jobs:
             --max-turns ${{ inputs.max_turns_commit }} \
             --dangerously-skip-permissions \
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
-            --allowedTools "Read,Write,Edit,Glob,Grep,Bash,mcp__linear"
+            --allowedTools "$ALLOWED_TOOLS"
 
       - name: Push branch
         run: |
