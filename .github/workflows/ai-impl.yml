@@ -203,17 +203,41 @@ jobs:
       - name: Override Claude permissions for CI
         run: |
           mkdir -p .claude
-          python3 -c "
+ 
+          if [ -f .claude/settings.json ]; then
+            echo "Patching existing .claude/settings.json: ask -> [], adding allow list"
+            python3 <<'PY'
+          import json, os
+          path = '.claude/settings.json'
+          with open(path) as f:
+              data = json.load(f)
+          perms = data.get('permissions', {})
+
+          old_ask = perms.get('ask', []) or []
+          old_allow = perms.get('allow', []) or []
+          merged_allow = list(dict.fromkeys(old_allow + old_ask))
+          perms['allow'] = merged_allow
+          perms['ask'] = []
+          perms.setdefault('deny', [])
+          data['permissions'] = perms
+          with open(path, 'w') as f:
+              json.dump(data, f, indent=2)
+          print(f"Patched. allow={len(merged_allow)} entries, ask=[]")
+          PY
+            echo "Patched .claude/settings.json:"
+            cat .claude/settings.json
+          else
+            echo "No .claude/settings.json found in repo — skipping patch"
+          fi
+
+          python3 <<'PY'
           import json
           settings = {
             'permissions': {
               'defaultMode': 'bypassPermissions',
               'allow': [
-                'Bash(git commit:*)',
-                'Bash(git push:*)',
-                'Bash(gh pr create:*)',
-                'Bash(gh pr comment:*)',
-                'Bash(gh pr edit:*)',
+                'Bash(git commit:*)', 'Bash(git push:*)',
+                'Bash(gh pr create:*)', 'Bash(gh pr comment:*)', 'Bash(gh pr edit:*)',
                 'Skill(plan)', 'Skill(impl)', 'Skill(commit)', 'Skill(push)', 'Skill(review)',
                 'Skill(flow:plan)', 'Skill(flow:impl)', 'Skill(flow:commit)', 'Skill(flow:push)', 'Skill(flow:review)',
                 'Skill(flow-legacy:plan)', 'Skill(flow-legacy:impl)', 'Skill(flow-legacy:commit)', 'Skill(flow-legacy:push)', 'Skill(flow-legacy:review)',
@@ -224,10 +248,9 @@ jobs:
             }
           }
           with open('.claude/settings.local.json', 'w') as f:
-            json.dump(settings, f, indent=2)
-          print('Wrote .claude/settings.local.json')
-          "
-          echo "Content:"
+              json.dump(settings, f, indent=2)
+          print("Wrote .claude/settings.local.json with bypassPermissions")
+          PY
           cat .claude/settings.local.json
 
       - name: Register plugin marketplaces
