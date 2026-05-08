@@ -202,28 +202,32 @@ jobs:
 
       - name: Override Claude permissions for CI
         run: |
-         mkdir -p .claude
-          cat > .claude/settings.local.json <<'EOF'
-          {
-            "permissions": {
-              "defaultMode": "bypassPermissions",
-              "allow": [
-                "Bash(git commit:*)",
-                "Bash(git push:*)",
-                "Bash(gh pr create:*)",
-                "Bash(gh pr comment:*)",
-                "Bash(gh pr edit:*)",
-                "Skill(plan)", "Skill(impl)", "Skill(commit)", "Skill(push)", "Skill(review)",
-                "Skill(flow:plan)", "Skill(flow:impl)", "Skill(flow:commit)", "Skill(flow:push)", "Skill(flow:review)",
-                "Skill(flow-legacy:plan)", "Skill(flow-legacy:impl)", "Skill(flow-legacy:commit)", "Skill(flow-legacy:push)", "Skill(flow-legacy:review)",
-                "Skill(flow-external:plan)", "Skill(flow-external:impl)", "Skill(flow-external:commit)", "Skill(flow-external:push)", "Skill(flow-external:review)"
+          mkdir -p .claude
+          python3 -c "
+          import json
+          settings = {
+            'permissions': {
+              'defaultMode': 'bypassPermissions',
+              'allow': [
+                'Bash(git commit:*)',
+                'Bash(git push:*)',
+                'Bash(gh pr create:*)',
+                'Bash(gh pr comment:*)',
+                'Bash(gh pr edit:*)',
+                'Skill(plan)', 'Skill(impl)', 'Skill(commit)', 'Skill(push)', 'Skill(review)',
+                'Skill(flow:plan)', 'Skill(flow:impl)', 'Skill(flow:commit)', 'Skill(flow:push)', 'Skill(flow:review)',
+                'Skill(flow-legacy:plan)', 'Skill(flow-legacy:impl)', 'Skill(flow-legacy:commit)', 'Skill(flow-legacy:push)', 'Skill(flow-legacy:review)',
+                'Skill(flow-external:plan)', 'Skill(flow-external:impl)', 'Skill(flow-external:commit)', 'Skill(flow-external:push)', 'Skill(flow-external:review)'
               ],
-              "ask": [],
-              "deny": []
+              'ask': [],
+              'deny': []
             }
           }
-          EOF
-          echo "Wrote .claude/settings.local.json:"
+          with open('.claude/settings.local.json', 'w') as f:
+            json.dump(settings, f, indent=2)
+          print('Wrote .claude/settings.local.json')
+          "
+          echo "Content:"
           cat .claude/settings.local.json
 
       - name: Register plugin marketplaces
