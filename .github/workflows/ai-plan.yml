@@ -22,6 +22,11 @@ on:
         required: false
         type: string
         default: '24'
+      node_legacy:
+        description: 'Node.js legacy peer deps install'
+        required: false
+        type: boolean
+        default: false
       model:
         description: 'Claude model'
         required: false
@@ -127,8 +132,12 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Install dependencies
-        if: ${{ inputs.install_plugins }}
-        run: npm ci
+        if: ${{ inputs.install_plugins && !inputs.node_legacy }}
+        run: npm ci 
+
+      - name: Install dependencies (legacy peer deps)
+        if: ${{ inputs.install_plugins && inputs.node_legacy }}
+        run: npm ci --legacy-peer-deps
 
       - name: Register plugin marketplaces
         if: ${{ inputs.install_plugins }}
