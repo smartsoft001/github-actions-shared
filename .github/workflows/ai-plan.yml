@@ -123,11 +123,12 @@ jobs:
           node-version: ${{ inputs.node_version }}
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
-
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install dependencies
+        if: ${{ inputs.install_plugins }}
+        run: npm ci
 
       - name: Register plugin marketplaces
         if: ${{ inputs.install_plugins }}
