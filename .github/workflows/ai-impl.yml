@@ -1,0 +1,266 @@
+name: AI Impl (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      issue_id:
+        description: 'Linear issue identifier (e.g. GAL-123). The branch will be created with this exact name.'
+        required: true
+        type: string
+      base_branch:
+        description: 'Source branch and PR target'
+        required: false
+        type: string
+        default: 'development'
+      impl_command:
+        description: 'Impl command variant: /impl, /flow:impl, /flow-legacy:impl, /flow-external:impl'
+        required: false
+        type: string
+        default: '/flow:impl'
+      commit_command:
+        description: 'Commit command variant: /commit, /flow:commit, /flow-legacy:commit, /flow-external:commit'
+        required: false
+        type: string
+        default: '/flow:commit'
+      node_version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      model:
+        description: 'Claude model'
+        required: false
+        type: string
+        default: 'claude-opus-4-7'
+      max_turns_impl:
+        description: 'Max turns for /impl'
+        required: false
+        type: number
+        default: 200
+      max_turns_commit:
+        description: 'Max turns for /commit'
+        required: false
+        type: number
+        default: 50
+      install_plugins:
+        description: |
+          Whether to register marketplaces and install Claude Code plugins.
+          true (default) — runs both steps using values from plugins_install / marketplaces_register.
+          false — skips both (e.g. for repos using bare /impl without plugins).
+        required: false
+        type: boolean
+        default: true
+      plugins_install:
+        description: |
+          Multi-line list of plugins to install via "claude plugin install".
+          Format: one plugin per line.
+          Default matches mobilems-muzeum-swiatowid configuration (smart + flow).
+          Ignored when install_plugins=false.
+        required: false
+        type: string
+        default: |
+          smart@smartsoft --scope project
+          flow@mobilems --scope project
+      marketplaces_register:
+        description: |
+          Multi-line list of plugin marketplaces to register via "claude plugin marketplace add".
+          Format: one path per line. Default assumes both packages are present in node_modules
+          after npm ci (declared in caller repo's package.json).
+          Ignored when install_plugins=false.
+        required: false
+        type: string
+        default: |
+          ./node_modules/@smartsoft001/claude-plugins
+          ./node_modules/@smartsoft001-mobilems/claude-plugins
+
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+      LINEAR_API_KEY:
+        required: true
+
+jobs:
+  impl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: write
+      issues: write
+
+    env:
+      ISSUE_ID: ${{ inputs.issue_id }}
+      BRANCH_NAME: ${{ inputs.issue_id }}
+      BASE_BRANCH: ${{ inputs.base_branch }}
+      IMPL_COMMAND: ${{ inputs.impl_command }}
+      COMMIT_COMMAND: ${{ inputs.commit_command }}
+
+    steps:
+      - name: Validate inputs and secrets
+        run: |
+          if [ -z "$ISSUE_ID" ]; then
+            echo "::error::Missing issue_id"
+            exit 1
+          fi
+          case "$IMPL_COMMAND" in
+            "/impl"|"/flow:impl"|"/flow-legacy:impl"|"/flow-external:impl") ;;
+            *)
+              echo "::error::Invalid impl_command: $IMPL_COMMAND"
+              echo "Allowed: /impl, /flow:impl, /flow-legacy:impl, /flow-external:impl"
+              exit 1
+              ;;
+          esac
+          case "$COMMIT_COMMAND" in
+            "/commit"|"/flow:commit"|"/flow-legacy:commit"|"/flow-external:commit") ;;
+            *)
+              echo "::error::Invalid commit_command: $COMMIT_COMMAND"
+              echo "Allowed: /commit, /flow:commit, /flow-legacy:commit, /flow-external:commit"
+              exit 1
+              ;;
+          esac
+          echo "Implementing $ISSUE_ID"
+          echo "  impl:        $IMPL_COMMAND"
+          echo "  commit:      $COMMIT_COMMAND"
+          echo "  branch:      $BRANCH_NAME"
+          echo "  base_branch: $BASE_BRANCH (also PR target)"
+          echo "  install_plugins: ${{ inputs.install_plugins }}"
+          if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.LINEAR_API_KEY }}" ]; then
+            echo "::warning::LINEAR_API_KEY not set — Linear MCP will fail"
+          fi
+
+      - name: Checkout base branch
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ inputs.base_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git for claude[bot]
+        run: |
+          git config user.name "claude[bot]"
+          git config user.email "claude-bot@users.noreply.github.com"
+
+      - name: Create or checkout impl branch
+        run: |
+          # Branch name matches the ticket exactly (ISSUE_ID).
+          # If it already exists on origin (from a previous run), check it out.
+          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" > /dev/null 2>&1; then
+            echo "Branch $BRANCH_NAME already exists on origin, checking out"
+            git fetch origin "$BRANCH_NAME":"$BRANCH_NAME"
+            git checkout "$BRANCH_NAME"
+          else
+            echo "Creating new branch $BRANCH_NAME from $BASE_BRANCH"
+            git checkout -b "$BRANCH_NAME"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Register plugin marketplaces
+        if: ${{ inputs.install_plugins }}
+        env:
+          MARKETPLACES: ${{ inputs.marketplaces_register }}
+        run: |
+          while IFS= read -r marketplace; do
+            [ -z "$marketplace" ] && continue
+            echo "Registering marketplace: $marketplace"
+            claude plugin marketplace add "$marketplace"
+          done <<< "$MARKETPLACES"
+
+      - name: Install project plugins
+        if: ${{ inputs.install_plugins }}
+        env:
+          PLUGINS: ${{ inputs.plugins_install }}
+        run: |
+          while IFS= read -r plugin; do
+            [ -z "$plugin" ] && continue
+            echo "Installing plugin: $plugin"
+            claude plugin install $plugin
+          done <<< "$PLUGINS"
+
+      - name: Run impl command
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          claude --print "$IMPL_COMMAND $ISSUE_ID --auto" \
+            --model ${{ inputs.model }} \
+            --max-turns ${{ inputs.max_turns_impl }} \
+            --dangerously-skip-permissions \
+            --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash,mcp__linear"
+
+      - name: Run commit command
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          claude --print "$COMMIT_COMMAND $ISSUE_ID --auto" \
+            --model ${{ inputs.model }} \
+            --max-turns ${{ inputs.max_turns_commit }} \
+            --dangerously-skip-permissions \
+            --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
+            --allowedTools "Read,Write,Edit,Glob,Grep,Bash,mcp__linear"
+
+      - name: Push branch
+        run: |
+          # /flow:commit has already committed. This step only pushes.
+          # If there are no commits ahead of base_branch — exit 0 with a warning.
+          if [ -z "$(git log origin/$BASE_BRANCH..HEAD --oneline 2>/dev/null)" ]; then
+            echo "::warning::No commits ahead of $BASE_BRANCH — claude commands didn't produce changes"
+            exit 0
+          fi
+          git push -u origin "$BRANCH_NAME"
+
+      - name: Create or update PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If push didn't happen (no commits) — skip PR.
+          if [ -z "$(git log origin/$BASE_BRANCH..HEAD --oneline 2>/dev/null)" ]; then
+            echo "Skipping PR — no commits"
+            exit 0
+          fi
+
+          # Build the PR body via heredoc into a file — avoids inline markdown
+          # which can break the YAML parser when lines start with asterisks.
+          PR_BODY_FILE=$(mktemp)
+          cat > "$PR_BODY_FILE" <<EOF
+          Auto-generated PR from \`$IMPL_COMMAND $ISSUE_ID --auto\` + \`$COMMIT_COMMAND $ISSUE_ID --auto\`.
+
+          Linear issue: https://linear.app/smartflow001/issue/$ISSUE_ID
+          Triggered by: ai-impl-dispatcher (n8n)
+          Branch: \`$BRANCH_NAME\` -> \`$BASE_BRANCH\`
+
+          This PR was created automatically and requires human review before merge.
+          EOF
+
+          existing_pr=$(gh pr list --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$existing_pr" ]; then
+            echo "PR #$existing_pr already exists for branch $BRANCH_NAME"
+            gh pr comment "$existing_pr" --body "Auto-impl: new changes pushed from $IMPL_COMMAND $ISSUE_ID --auto + $COMMIT_COMMAND $ISSUE_ID --auto"
+          else
+            gh pr create \
+              --head "$BRANCH_NAME" \
+              --base "$BASE_BRANCH" \
+              --title "[$ISSUE_ID] automated implementation" \
+              --body-file "$PR_BODY_FILE"
+          fi
+
+          rm -f "$PR_BODY_FILE"
