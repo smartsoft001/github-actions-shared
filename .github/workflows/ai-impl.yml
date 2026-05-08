@@ -189,6 +189,21 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Override Claude permissions for CI
+        run: |
+          mkdir -p .claude
+          cat > .claude/settings.local.json <<'EOF'
+          {
+            "permissions": {
+              "ask": [],
+              "deny": []
+            },
+            "permissionMode": "bypassPermissions"
+          }
+          EOF
+          echo "Wrote .claude/settings.local.json:"
+          cat .claude/settings.local.json
+
       - name: Register plugin marketplaces
         if: ${{ inputs.install_plugins }}
         env:
