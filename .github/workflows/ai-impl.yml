@@ -27,26 +27,38 @@ on:
         required: false
         type: string
         default: '/flow:push'
-      node_legacy:
-        description: 'Node.js legacy peer deps install'
-        required: false
-        type: boolean
-        default: false
-      node_version:
-        description: 'Node.js version'
+
+      # AI gate classification from n8n dispatcher.
+      # Drives model selection (Haiku/Sonnet/Opus), --max-turns, and --effort (low/medium/high/xhigh).
+      # Empty values fall back to safe defaults (Sonnet + 200 turns + medium effort).
+      ai_size:
+        description: 'AI gate classification S/M/L. Drives max_turns and --effort.'
         required: false
         type: string
-        default: '24'
+        default: ''
+      ai_complexity:
+        description: 'AI gate classification S/M/L. Drives model selection.'
+        required: false
+        type: string
+        default: ''
+
+      # Static overrides — non-empty values bypass the size/complexity mapping.
+      # Useful for manual workflow_dispatch testing or repos with fixed requirements.
       model:
-        description: 'Claude model'
+        description: 'Override impl model (empty = use size/complexity mapping)'
         required: false
         type: string
-        default: 'claude-sonnet-4-6'
+        default: ''
+      effort:
+        description: 'Override impl effort (low/medium/high/xhigh, empty = use mapping)'
+        required: false
+        type: string
+        default: ''
       max_turns_impl:
-        description: 'Max turns for /impl'
+        description: 'Override impl max-turns (0 = use mapping)'
         required: false
         type: number
-        default: 200
+        default: 0
       max_turns_commit:
         description: 'Max turns for /commit'
         required: false
@@ -57,6 +69,17 @@ on:
         required: false
         type: number
         default: 50
+
+      node_version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '24'
+      node_legacy:
+        description: 'Use npm ci --legacy-peer-deps for repos with peer dep conflicts'
+        required: false
+        type: boolean
+        default: false
       install_plugins:
         description: |
           Whether to register marketplaces and install Claude Code plugins.
@@ -132,7 +155,6 @@ jobs:
             "/impl"|"/flow:impl"|"/flow-legacy:impl"|"/flow-external:impl") ;;
             *)
               echo "::error::Invalid impl_command: $IMPL_COMMAND"
-              echo "Allowed: /impl, /flow:impl, /flow-legacy:impl, /flow-external:impl"
               exit 1
               ;;
           esac
@@ -140,23 +162,117 @@ jobs:
             "/commit"|"/flow:commit"|"/flow-legacy:commit"|"/flow-external:commit") ;;
             *)
               echo "::error::Invalid commit_command: $COMMIT_COMMAND"
-              echo "Allowed: /commit, /flow:commit, /flow-legacy:commit, /flow-external:commit"
+              exit 1
+              ;;
+          esac
+          case "$PUSH_COMMAND" in
+            "/push"|"/flow:push"|"/flow-legacy:push"|"/flow-external:push") ;;
+            *)
+              echo "::error::Invalid push_command: $PUSH_COMMAND"
               exit 1
               ;;
           esac
           echo "Implementing $ISSUE_ID"
           echo "  impl:        $IMPL_COMMAND"
           echo "  commit:      $COMMIT_COMMAND"
+          echo "  push:        $PUSH_COMMAND"
           echo "  branch:      $BRANCH_NAME"
-          echo "  base_branch: $BASE_BRANCH (also PR target)"
-          echo "  install_plugins: ${{ inputs.install_plugins }}"
+          echo "  base_branch: $BASE_BRANCH"
+          echo "  ai_size:        ${{ inputs.ai_size }}"
+          echo "  ai_complexity:  ${{ inputs.ai_complexity }}"
           if [ -z "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}" ]; then
             echo "::error::CLAUDE_CODE_OAUTH_TOKEN not set"
             exit 1
           fi
-          if [ -z "${{ secrets.LINEAR_API_KEY }}" ]; then
-            echo "::warning::LINEAR_API_KEY not set — Linear MCP will fail"
+
+      - name: Resolve model, max-turns and effort from size/complexity
+        id: resolve
+        env:
+          AI_SIZE: ${{ inputs.ai_size }}
+          AI_COMPLEXITY: ${{ inputs.ai_complexity }}
+          OVERRIDE_MODEL: ${{ inputs.model }}
+          OVERRIDE_EFFORT: ${{ inputs.effort }}
+          OVERRIDE_TURNS: ${{ inputs.max_turns_impl }}
+        run: |
+          # Normalize size/complexity (default M when empty — safe middle for manual dispatch)
+          SIZE="${AI_SIZE:-M}"
+          COMPLEXITY="${AI_COMPLEXITY:-M}"
+
+          # ─── MODEL mapping (Variant C: Haiku tylko dla S/S) ─────────────────
+          case "$SIZE/$COMPLEXITY" in
+            S/S)                              model="claude-haiku-4-5"   ;;
+            S/M|M/S|M/M|L/S)                  model="claude-sonnet-4-6"  ;;
+            S/L|M/L|L/M|L/L)                  model="claude-opus-4-7"    ;;
+            *)                                model="claude-sonnet-4-6"  ;;  # fallback
+          esac
+
+          # ─── MAX-TURNS mapping (size-driven) ────────────────────────────────
+          case "$SIZE" in
+            S) turns_impl=80   ;;
+            M) turns_impl=150  ;;
+            L) turns_impl=250  ;;
+            *) turns_impl=150  ;;
+          esac
+
+          # ─── EFFORT mapping (per Emil's rules) ──────────────────────────────
+          # SIZE=S → low
+          # SIZE=M → medium
+          # SIZE=L + complexity S/M → high
+          # SIZE=L + complexity L   → xhigh
+          case "$SIZE/$COMPLEXITY" in
+            S/*)            effort="low"     ;;
+            M/*)            effort="medium"  ;;
+            L/S|L/M)        effort="high"    ;;
+            L/L)            effort="xhigh"   ;;
+            *)              effort="medium"  ;;
+          esac
+
+          # ─── STATIC OVERRIDES ────────────────────────────────────────────────
+          if [ -n "$OVERRIDE_MODEL" ]; then
+            echo "::notice::Model overridden via inputs: $OVERRIDE_MODEL (was $model)"
+            model="$OVERRIDE_MODEL"
           fi
+          if [ -n "$OVERRIDE_EFFORT" ]; then
+            echo "::notice::Effort overridden via inputs: $OVERRIDE_EFFORT (was $effort)"
+            effort="$OVERRIDE_EFFORT"
+          fi
+          if [ "$OVERRIDE_TURNS" != "0" ] && [ -n "$OVERRIDE_TURNS" ]; then
+            echo "::notice::Max-turns overridden via inputs: $OVERRIDE_TURNS (was $turns_impl)"
+            turns_impl="$OVERRIDE_TURNS"
+          fi
+
+          # ─── EFFORT FLAG (Haiku skip — no extended thinking support) ────────
+          # Build the actual --effort CLI arg. Empty string = flag omitted.
+          if [ "$model" = "claude-haiku-4-5" ]; then
+            effort_flag=""
+            effort_display="$effort (omitted for Haiku)"
+          else
+            effort_flag="--effort $effort"
+            effort_display="$effort"
+          fi
+
+          # ─── OUTPUTS ────────────────────────────────────────────────────────
+          {
+            echo "model=$model"
+            echo "turns_impl=$turns_impl"
+            echo "effort=$effort"
+            echo "effort_flag=$effort_flag"
+          } >> "$GITHUB_OUTPUT"
+
+          # ─── STEP SUMMARY (visible in GHA UI) ────────────────────────────────
+          {
+            echo "## 🎯 Model resolution"
+            echo ""
+            echo "| Param | Value |"
+            echo "|---|---|"
+            echo "| ai_size | \`$SIZE\` |"
+            echo "| ai_complexity | \`$COMPLEXITY\` |"
+            echo "| impl model | \`$model\` |"
+            echo "| impl max-turns | $turns_impl |"
+            echo "| impl effort | $effort_display |"
+            echo "| commit model | \`claude-sonnet-4-6\` (fixed) |"
+            echo "| push model | \`claude-sonnet-4-6\` (fixed) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout base branch
         uses: actions/checkout@v6.0.2
@@ -172,8 +288,6 @@ jobs:
 
       - name: Create or checkout impl branch
         run: |
-          # Branch name matches the ticket exactly (ISSUE_ID).
-          # If it already exists on origin (from a previous run), check it out.
           if git ls-remote --exit-code --heads origin "$BRANCH_NAME" > /dev/null 2>&1; then
             echo "Branch $BRANCH_NAME already exists on origin, checking out"
             git fetch origin "$BRANCH_NAME":"$BRANCH_NAME"
@@ -202,17 +316,19 @@ jobs:
 
       - name: Override Claude permissions for CI
         run: |
+          # In CI we cannot answer interactive approval prompts. We patch the repo's
+          # .claude/settings.json IN-PLACE on the runner (never committed) and also
+          # write .claude/settings.local.json with bypassPermissions as fallback.
           mkdir -p .claude
- 
+
           if [ -f .claude/settings.json ]; then
             echo "Patching existing .claude/settings.json: ask -> [], adding allow list"
             python3 <<'PY'
-          import json, os
+          import json
           path = '.claude/settings.json'
           with open(path) as f:
               data = json.load(f)
           perms = data.get('permissions', {})
-
           old_ask = perms.get('ask', []) or []
           old_allow = perms.get('allow', []) or []
           merged_allow = list(dict.fromkeys(old_allow + old_ask))
@@ -230,6 +346,7 @@ jobs:
             echo "No .claude/settings.json found in repo — skipping patch"
           fi
 
+          # Belt-and-suspenders fallback: settings.local.json with bypassPermissions
           python3 <<'PY'
           import json
           settings = {
@@ -280,9 +397,12 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
+          # Model and effort dynamically resolved from ai_size/ai_complexity.
+          # effort_flag is empty for Haiku (no extended thinking support).
           claude --print "$IMPL_COMMAND $ISSUE_ID --auto" \
-            --model ${{ inputs.model }} \
-            --max-turns ${{ inputs.max_turns_impl }} \
+            --model ${{ steps.resolve.outputs.model }} \
+            --max-turns ${{ steps.resolve.outputs.turns_impl }} \
+            ${{ steps.resolve.outputs.effort_flag }} \
             --dangerously-skip-permissions \
             --permission-mode bypassPermissions \
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
@@ -293,22 +413,26 @@ jobs:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
+          # Commit always uses Sonnet (cheap, safe) with low effort — simple git op.
           claude --print "$COMMIT_COMMAND $ISSUE_ID --auto" \
-            --model ${{ inputs.model }} \
+            --model claude-sonnet-4-6 \
             --max-turns ${{ inputs.max_turns_commit }} \
+            --effort low \
             --dangerously-skip-permissions \
             --permission-mode bypassPermissions \
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
             --allowedTools "$ALLOWED_TOOLS"
-            
+
       - name: Run push command
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
+          # Push always uses Sonnet (cheap, safe) with low effort — simple git push.
           claude --print "$PUSH_COMMAND $ISSUE_ID --auto" \
-            --model ${{ inputs.model }} \
+            --model claude-sonnet-4-6 \
             --max-turns ${{ inputs.max_turns_push }} \
+            --effort low \
             --dangerously-skip-permissions \
             --permission-mode bypassPermissions \
             --mcp-config '{"mcpServers":{"linear":{"type":"http","url":"https://mcp.linear.app/mcp","headers":{"Authorization":"Bearer '"$LINEAR_API_KEY"'"}}}}' \
@@ -318,21 +442,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # If push didn't happen (no commits) — skip PR.
           if [ -z "$(git log origin/$BASE_BRANCH..HEAD --oneline 2>/dev/null)" ]; then
             echo "Skipping PR — no commits"
             exit 0
           fi
 
-          # Build the PR body via heredoc into a file — avoids inline markdown
-          # which can break the YAML parser when lines start with asterisks.
           PR_BODY_FILE=$(mktemp)
           cat > "$PR_BODY_FILE" <<EOF
-          Auto-generated PR from \`$IMPL_COMMAND $ISSUE_ID --auto\` + \`$COMMIT_COMMAND $ISSUE_ID --auto\`.
+          Auto-generated PR from \`$IMPL_COMMAND $ISSUE_ID --auto\` + \`$COMMIT_COMMAND $ISSUE_ID --auto\` + \`$PUSH_COMMAND $ISSUE_ID --auto\`.
 
           Linear issue: https://linear.app/smartflow001/issue/$ISSUE_ID
           Triggered by: ai-impl-dispatcher (n8n)
           Branch: \`$BRANCH_NAME\` -> \`$BASE_BRANCH\`
+
+          AI gate classification:
+          - size: ${{ inputs.ai_size }}
+          - complexity: ${{ inputs.ai_complexity }}
+          - model used: ${{ steps.resolve.outputs.model }}
+          - effort: ${{ steps.resolve.outputs.effort }}
 
           This PR was created automatically and requires human review before merge.
           EOF
@@ -341,7 +468,7 @@ jobs:
 
           if [ -n "$existing_pr" ]; then
             echo "PR #$existing_pr already exists for branch $BRANCH_NAME"
-            gh pr comment "$existing_pr" --body "Auto-impl: new changes pushed from $IMPL_COMMAND $ISSUE_ID --auto + $COMMIT_COMMAND $ISSUE_ID --auto"
+            gh pr comment "$existing_pr" --body "Auto-impl: new changes pushed (size=${{ inputs.ai_size }}, complexity=${{ inputs.ai_complexity }}, model=${{ steps.resolve.outputs.model }})"
           else
             gh pr create \
               --head "$BRANCH_NAME" \
