@@ -50,14 +50,14 @@ on:
           Multi-line list of plugins to install via "claude plugin install".
           Format: jeden plugin per linia, np.:
             smart@smartsoft --scope project
-            flow@mobilems --scope project
+            flow@smart-pro --scope project
           Default odpowiada konfiguracji muzeum-swiatowid (smart + flow).
           Ignorowane gdy install_plugins=false.
         required: false
         type: string
         default: |
           smart@smartsoft --scope project
-          flow@mobilems --scope project
+          flow@smart-pro --scope project
       marketplaces_register:
         description: |
           Multi-line list of plugin marketplaces to register via "claude plugin marketplace add".
@@ -68,7 +68,7 @@ on:
         type: string
         default: |
           ./node_modules/@smartsoft001/claude-plugins
-          ./node_modules/@smartsoft001-mobilems/claude-plugins
+          ./node_modules/@smartsoft001/pro-claude-plugins
 
     secrets:
       CLAUDE_CODE_OAUTH_TOKEN:
