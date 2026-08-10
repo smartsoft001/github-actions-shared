@@ -201,9 +201,9 @@ jobs:
           # ─── MODEL mapping (Variant C: Haiku tylko dla S/S) ─────────────────
           case "$SIZE/$COMPLEXITY" in
             S/S)                              model="claude-haiku-4-5"   ;;
-            S/M|M/S|M/M|L/S)                  model="claude-sonnet-4-6"  ;;
-            S/L|M/L|L/M|L/L)                  model="claude-opus-4-7"    ;;
-            *)                                model="claude-sonnet-4-6"  ;;  # fallback
+            S/M|M/S|M/M|L/S)                  model="claude-sonnet-5"  ;;
+            S/L|M/L|L/M|L/L)                  model="claude-opus-5"    ;;
+            *)                                model="claude-sonnet-5"  ;;  # fallback
           esac
 
           # ─── MAX-TURNS mapping (size-driven) ────────────────────────────────
@@ -270,8 +270,8 @@ jobs:
             echo "| impl model | \`$model\` |"
             echo "| impl max-turns | $turns_impl |"
             echo "| impl effort | $effort_display |"
-            echo "| commit model | \`claude-sonnet-4-6\` (fixed) |"
-            echo "| push model | \`claude-sonnet-4-6\` (fixed) |"
+            echo "| commit model | \`claude-sonnet-5\` (fixed) |"
+            echo "| push model | \`claude-sonnet-5\` (fixed) |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Checkout base branch
@@ -415,7 +415,7 @@ jobs:
         run: |
           # Commit always uses Sonnet (cheap, safe) with low effort — simple git op.
           claude --print "$COMMIT_COMMAND $ISSUE_ID --auto" \
-            --model claude-sonnet-4-6 \
+            --model claude-sonnet-5 \
             --max-turns ${{ inputs.max_turns_commit }} \
             --effort low \
             --dangerously-skip-permissions \
@@ -430,7 +430,7 @@ jobs:
         run: |
           # Push always uses Sonnet (cheap, safe) with low effort — simple git push.
           claude --print "$PUSH_COMMAND $ISSUE_ID --auto" \
-            --model claude-sonnet-4-6 \
+            --model claude-sonnet-5 \
             --max-turns ${{ inputs.max_turns_push }} \
             --effort low \
             --dangerously-skip-permissions \

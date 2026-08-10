@@ -31,7 +31,7 @@ on:
         description: 'Claude model'
         required: false
         type: string
-        default: 'claude-opus-4-7'
+        default: 'claude-opus-5'
       max_turns:
         description: 'Max turns for Claude'
         required: false
