@@ -9,7 +9,7 @@ async function main() {
     fs.copyFileSync('/work/package.json', '/deps/package.json');
     fs.copyFileSync('/work/package-lock.json', '/deps/package-lock.json');
     fs.cpSync('/work/tools/packages', '/deps/tools/packages', { recursive: true });
-    const result = spawnSync('npm', ['ci', '--ignore-scripts', '--cache', '/tmp/npm-cache', '--no-audit', '--no-fund'], { cwd: '/deps', stdio: 'inherit' });
+    const result = spawnSync('npm', ['ci', '--legacy-peer-deps', '--ignore-scripts', '--cache', '/tmp/npm-cache', '--no-audit', '--no-fund'], { cwd: '/deps', stdio: 'inherit' });
     if (result.error || result.status !== 0) throw Error('Dependency installation failed');
     return;
   }
