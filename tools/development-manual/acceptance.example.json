@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "contract": "trusted-manual-v1",
+  "enabled": false,
+  "repository": "smartsoft001/galena-mvno",
+  "repository_id": 567923474,
+  "execution_sha": null,
+  "wrapper_blob_sha": null,
+  "shared_sha": null,
+  "helper_sha": null,
+  "actor_id": 6243316,
+  "workflow_id": null,
+  "expected_run_number": null,
+  "profile_id": "mvno-v1",
+  "mandate": {
+    "id": null,
+    "pr_number": null,
+    "head_sha": null,
+    "base_sha": null,
+    "pr_updated_at": null,
+    "requirements_sha256": null,
+    "valid_from": null,
+    "expires_at": null,
+    "max_budget_usd": 5,
+    "cost_acceptance": "cli-estimate-plus-runner-usage"
+  }
+}
