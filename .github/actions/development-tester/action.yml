@@ -1,0 +1,31 @@
+name: Development tester trusted producer
+description: Produces bounded evidence for the disabled MVNO pilot; never dispatches or merges.
+inputs:
+  mode:
+    description: prepare, checks, review or finalize (validated enum)
+    required: true
+outputs:
+  head_sha:
+    description: Frozen PR head
+    value: ${{ steps.producer.outputs.head_sha }}
+  base_sha:
+    description: Current development revision
+    value: ${{ steps.producer.outputs.base_sha }}
+  wrapper_blob_sha:
+    description: Wrapper blob verified at execution and head revisions
+    value: ${{ steps.producer.outputs.wrapper_blob_sha }}
+  pr_number:
+    description: Verified PR number
+    value: ${{ steps.producer.outputs.pr_number }}
+  pr_updated_at:
+    description: Frozen GitHub PR metadata timestamp
+    value: ${{ steps.producer.outputs.pr_updated_at }}
+runs:
+  using: composite
+  steps:
+    - name: Run trusted producer
+      id: producer
+      shell: bash
+      env:
+        TESTER_MODE: ${{ inputs.mode }}
+      run: python3 "$GITHUB_ACTION_PATH/../../../tools/development-tester/tester.py" "$TESTER_MODE"
