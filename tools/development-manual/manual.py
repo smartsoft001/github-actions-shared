@@ -186,13 +186,34 @@ def validate_checks(subject, checks):
         require(type(value) in (int, float) and math.isfinite(value) and minimum <= value <= 100, 'coverage missing/low')
 
 
+def sanitize_cli_result(raw):
+    require(isinstance(raw, dict), 'missing structured CLI result')
+    fields = ('type', 'subtype', 'is_error', 'session_id', 'structured_output', 'total_cost_usd')
+    require(all(key in raw for key in fields), 'incomplete structured CLI result')
+    safe = {key: raw[key] for key in fields}
+    usage = raw.get('modelUsage')
+    require(isinstance(usage, dict) and 0 < len(usage) <= 20, 'invalid model usage inventory')
+    metrics = {'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens',
+               'webSearchRequests', 'costUSD', 'contextWindow', 'maxOutputTokens'}
+    safe['modelUsage'] = {}
+    for model, values in usage.items():
+        require(isinstance(model, str) and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}', model), 'unsafe model name')
+        require(isinstance(values, dict), 'invalid model usage metrics')
+        selected = {key: value for key, value in values.items() if key in metrics}
+        require(selected and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in selected.values()), 'missing/nonfinite model usage metrics')
+        safe['modelUsage'][model] = selected
+    return safe
+
+
 def make_receipt(a, execution, subject, checks, review):
     require(subject.get('contract') == CONTRACT and subject.get('execution_sha') == execution.get('execution_sha') == a['execution_sha'] and
             subject.get('head_sha') == a['mandate']['head_sha'] and subject.get('base_sha') == a['mandate']['base_sha'] and
             subject.get('pr_number') == a['mandate']['pr_number'], 'receipt subject/execution mismatch')
     validate_checks(subject, checks)
     require(review.get('subject_sha256') == core.digest(subject) and review.get('execution') == execution, 'review/subject execution binding mismatch')
-    raw = review.get('cli_result'); result = core.validate_review(raw)
+    raw = sanitize_cli_result(review.get('cli_result'))
+    require(raw == review['cli_result'], 'review artifact contains fields outside the allowed schema')
+    result = core.validate_review(raw)
     require(raw.get('session_id') == review.get('requested_session_id'), 'review session mismatch')
     cost = raw.get('total_cost_usd')
     require(type(cost) in (int, float) and math.isfinite(cost) and cost >= 0, 'missing CLI-reported cost estimate')
@@ -282,7 +303,8 @@ def main():
         result = core.run_logged(argv, root / 'review-raw.json', cwd=clean, env=child, stdin=prompt,
                                  stderr=root / 'review-stderr.log', timeout=600)
         require(result['exit_code'] == 0, 'review CLI failed')
-        raw = core.read(root / 'review-raw.json'); require(raw.get('session_id') == session, 'unexpected actual review session')
+        raw = sanitize_cli_result(core.read(root / 'review-raw.json'))
+        require(raw.get('session_id') == session, 'unexpected actual review session')
         core.write(root / 'review.json', {'execution': execution, 'subject_sha256': core.digest(subject),
                                          'requested_session_id': session, 'cli_result': raw})
         core.validate_review(raw)

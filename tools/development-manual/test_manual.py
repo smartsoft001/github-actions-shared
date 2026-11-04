@@ -45,6 +45,23 @@ def fixture():
 
 
 class ManualTests(unittest.TestCase):
+    def test_structured_artifact_drops_raw_debug_credentials_and_nonmetric_usage(self):
+        raw = {'type': 'result', 'subtype': 'success', 'is_error': False,
+               'session_id': '7d926dba-a359-4ec2-a7e4-5a56c0dd57a1',
+               'structured_output': {'verdict': 'passed', 'summary': 'Fixture', 'findings': [], 'unverified': []},
+               'total_cost_usd': 0.1, 'result': 'fake-credential', 'debug': {'token': 'fake-credential'},
+               'modelUsage': {'fixture-model': {'inputTokens': 10, 'costUSD': 0.1,
+                                               'debug': 'fake-credential', 'unknownCounter': 123}}}
+        safe = manual.sanitize_cli_result(raw)
+        self.assertNotIn('fake-credential', str(safe))
+        self.assertNotIn('unknownCounter', str(safe))
+        self.assertEqual(safe['modelUsage'], {'fixture-model': {'inputTokens': 10, 'costUSD': 0.1}})
+        self.assertEqual(manual.core.validate_review(safe)['verdict'], 'passed')
+        for usage in ({'bad\nmodel': {'inputTokens': 10}}, {'model': {'inputTokens': float('nan')}},
+                      {'model': {'inputTokens': True}}, {'model': {'debug': 'fake-credential'}}):
+            invalid = copy.deepcopy(raw); invalid['modelUsage'] = usage
+            with self.assertRaises(ValueError): manual.sanitize_cli_result(invalid)
+
     def test_paid_model_and_final_success_stay_blocked_without_real_langfuse_adapter(self):
         with self.assertRaisesRegex(ValueError, 'Langfuse'):
             manual.require_paid_telemetry()
