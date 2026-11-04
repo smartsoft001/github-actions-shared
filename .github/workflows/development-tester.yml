@@ -1,0 +1,195 @@
+name: Staged independent Development tester
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        type: number
+        required: true
+      head_sha:
+        type: string
+        required: true
+      base_sha:
+        type: string
+        required: true
+      profile:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+  deployments: read
+
+env:
+  DT_PROFILE: ${{ inputs.profile }}
+  DT_RUN_ID: ${{ github.run_id }}
+  DT_RUN_ATTEMPT: ${{ github.run_attempt }}
+  DT_WORKFLOW_SHA: ${{ github.workflow_sha }}
+  DT_HELPER_SHA: e6e2be85fb7dbb70e15f5666a3c3ce50600a5b70
+
+jobs:
+  prepare:
+    name: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      head_sha: ${{ steps.prepare.outputs.head_sha }}
+      base_sha: ${{ steps.prepare.outputs.base_sha }}
+      wrapper_blob_sha: ${{ steps.prepare.outputs.wrapper_blob_sha }}
+      pr_number: ${{ steps.prepare.outputs.pr_number }}
+      pr_updated_at: ${{ steps.prepare.outputs.pr_updated_at }}
+    steps:
+      - name: Freeze live subject and validate manual enrollment
+        id: prepare
+        uses: smartsoft001/github-actions-shared/.github/actions/development-tester@e6e2be85fb7dbb70e15f5666a3c3ce50600a5b70
+        with:
+          mode: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DT_SHARED_SHA: ${{ job.workflow_sha }}
+          DT_PR_NUMBER: ${{ inputs.pr_number }}
+          DT_EXPECTED_HEAD: ${{ inputs.head_sha }}
+          DT_EXPECTED_BASE: ${{ inputs.base_sha }}
+          DT_PLATFORM_APPROVAL: ${{ vars.DEVELOPMENT_TESTER_PLATFORM_APPROVAL }}
+          DT_SECRET_ISOLATION: ${{ vars.DEVELOPMENT_TESTER_SECRET_ISOLATION }}
+      - name: Upload frozen subject
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-subject-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/development-tester/subject.json
+            ${{ runner.temp }}/development-tester/bundle.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  checks:
+    name: checks
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact candidate without persistent credentials
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: smartsoft001/galena-mvno
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download frozen subject
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: development-subject-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester
+      - name: Run fixed checks in secret-free disposable containers
+        uses: smartsoft001/github-actions-shared/.github/actions/development-tester@e6e2be85fb7dbb70e15f5666a3c3ce50600a5b70
+        with:
+          mode: checks
+        env:
+          DT_SHARED_SHA: ${{ job.workflow_sha }}
+      - name: Retain host receipts and bounded check logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/development-tester/checks.json
+            ${{ runner.temp }}/development-tester/*.log
+          if-no-files-found: error
+          retention-days: 7
+
+  ai-review:
+    name: ai-review
+    needs: [prepare, checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: development-ai-review
+    steps:
+      # There is intentionally no candidate checkout, secrets: inherit or repo config loading.
+      - name: Install supported Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20.20.2
+      - name: Install verified CLI without model credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/claude-package"
+          npm pack @anthropic-ai/claude-code@2.1.318 --pack-destination "$RUNNER_TEMP/claude-package" --ignore-scripts
+          python3 - <<'PY'
+          import base64, hashlib, os
+          from pathlib import Path
+          package = Path(os.environ['RUNNER_TEMP']) / 'claude-package/anthropic-ai-claude-code-2.1.318.tgz'
+          expected = 'OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q=='
+          assert base64.b64encode(hashlib.sha512(package.read_bytes()).digest()).decode() == expected, 'CLI integrity mismatch'
+          PY
+          npm install --global --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/claude-cli" "$RUNNER_TEMP/claude-package/anthropic-ai-claude-code-2.1.318.tgz"
+          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
+      - name: Download bounded review input
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: development-subject-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester
+      - name: Fresh independent code review with no tools
+        uses: smartsoft001/github-actions-shared/.github/actions/development-tester@e6e2be85fb7dbb70e15f5666a3c3ce50600a5b70
+        with:
+          mode: review
+        env:
+          DT_SHARED_SHA: ${{ job.workflow_sha }}
+          DT_REVIEW_MODEL: claude-opus-5
+          DT_PLATFORM_APPROVAL: ${{ vars.DEVELOPMENT_TESTER_PLATFORM_APPROVAL }}
+          DT_SECRET_ISOLATION: ${{ vars.DEVELOPMENT_TESTER_SECRET_ISOLATION }}
+          DEVELOPMENT_TESTER_CLAUDE_OAUTH_TOKEN: ${{ secrets.DEVELOPMENT_TESTER_CLAUDE_OAUTH_TOKEN }}
+      - name: Retain structured review, including findings
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester/review.json
+          if-no-files-found: error
+          retention-days: 7
+
+  development-tester:
+    name: 'development-tester (PR #${{ needs.prepare.outputs.pr_number }}, ${{ needs.prepare.outputs.base_sha }}, ${{ needs.prepare.outputs.wrapper_blob_sha }}, ${{ needs.prepare.outputs.pr_updated_at }})'
+    needs: [prepare, checks, ai-review]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require all producer jobs to have succeeded
+        env:
+          PREPARE: ${{ needs.prepare.result }}
+          CHECKS: ${{ needs.checks.result }}
+          REVIEW: ${{ needs.ai-review.result }}
+        run: test "$PREPARE" = success && test "$CHECKS" = success && test "$REVIEW" = success
+      - name: Download frozen subject
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: development-subject-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester
+      - name: Download deterministic evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: development-checks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester
+      - name: Download independent review
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: development-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester
+      - name: Validate reports and reread live PR before success
+        uses: smartsoft001/github-actions-shared/.github/actions/development-tester@e6e2be85fb7dbb70e15f5666a3c3ce50600a5b70
+        with:
+          mode: finalize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DT_SHARED_SHA: ${{ job.workflow_sha }}
+      - name: Upload validated report for human review
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-tester-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-tester/report.json
+          if-no-files-found: error
+          retention-days: 30

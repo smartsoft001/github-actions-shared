@@ -58,7 +58,7 @@ Run without credentials/model/network:
 python3 -m unittest discover -s tools/development-tester -p 'test_*.py' -v
 python3 -m py_compile tools/development-tester/tester.py tools/development-tester/mvno_profile.py
 node --check tools/development-tester/checks.cjs
-actionlint .github/workflows/development-tester.yml
+actionlint -ignore 'property "workflow_sha" is not defined in object type' .github/workflows/development-tester.yml
 ```
 
 Tests cover wrong PR/head/base/wrapper/run/attempt, changed requirements/timestamp, incomplete check sets, zero/skipped tests, low coverage, model-forged checks, review gaps, marker forgery with exit zero, missing build output, fresh subprocess environment/stdin timeout, malformed JSON, out-of-scope changes, symlink/submodule rejection and read-only mount arguments. These are local contract and subprocess tests, not a passed GitHub/Docker/AI run.
@@ -66,3 +66,5 @@ Tests cover wrong PR/head/base/wrapper/run/attempt, changed requirements/timesta
 Pins were read from official upstream metadata on 2026-11-04: GitHub REST `repos/actions/{checkout,setup-node,upload-artifact,download-artifact}/commits/v4`; Docker Hub Registry manifest for `library/node:20.20.2-bookworm`, digest `sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5`; npm registry `@anthropic-ai/claude-code/2.1.318`, integrity `sha512-OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q==`. No global installation was performed locally. The workflow verifies this tarball integrity before CLI installation and has no token during installation. Review model `claude-opus-5` matches the existing shared implementation configuration; actual use is reported by the CLI and still needs live acceptance.
 
 Relevant official interfaces: [job workflow context](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context), [CLI flags](https://code.claude.com/docs/en/cli-reference), [Contents symlink behavior](https://docs.github.com/en/rest/repos/contents), [workflow run provenance](https://docs.github.com/en/rest/actions/workflow-runs).
+
+Local actionlint 1.7.12 does not yet recognize the GitHub.com `job.workflow_sha` property documented in the official context reference. Unfiltered lint reports exactly those four known property errors; the command above excludes only that property diagnostic and validates the rest. No repository-wide lint suppression was added. Real GitHub.com context resolution remains part of activation acceptance.
