@@ -37,7 +37,7 @@ env:
   DM_HEAD_SHA: ${{ inputs.head_sha }}
   DM_BASE_SHA: ${{ inputs.base_sha }}
   DM_MANDATE_ID: ${{ inputs.mandate_id }}
-  DM_HELPER_SHA: 14ebdc821d3cbf5ef2f7196981e88f60d20628ad
+  DM_HELPER_SHA: 919fb5d6bf0919951c80fb4645f20875123cb017
 
 jobs:
   prepare:
@@ -51,7 +51,7 @@ jobs:
     steps:
       - name: Validate trusted execution, one-run mandate and live subject
         id: prepare
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@14ebdc821d3cbf5ef2f7196981e88f60d20628ad
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
         with:
           mode: prepare
         env:
@@ -89,7 +89,7 @@ jobs:
           name: development-manual-subject-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Run fixed checks in secret-free disposable containers
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@14ebdc821d3cbf5ef2f7196981e88f60d20628ad
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
         with:
           mode: checks
         env:
@@ -145,7 +145,7 @@ jobs:
           name: development-manual-checks-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Fresh review (blocked until separately accepted Langfuse integration)
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@14ebdc821d3cbf5ef2f7196981e88f60d20628ad
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
         with:
           mode: review
         env:
@@ -190,7 +190,7 @@ jobs:
           name: development-manual-review-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Validate reports and reread live PR before success
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@14ebdc821d3cbf5ef2f7196981e88f60d20628ad
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
         with:
           mode: finalize
         env:
