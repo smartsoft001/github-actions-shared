@@ -58,7 +58,7 @@ if (typeof module !== 'undefined') module.exports = { planCardUpdate };
 // A reservation survives an ambiguous append, so a retry only reads that block.
 async function reconcileCard(enrollment, io) {
   const { run, pull, report, card, trace } = await io.readEvidence(enrollment);
-  const existingKeys = await io.readMarkers(card.id);
+  const existingKeys = await io.readMarkers(enrollment.cardId);
   const plan = planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace });
   const outcomes = [];
   for (const child of plan.children) {
