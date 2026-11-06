@@ -47,3 +47,49 @@ test('lost append response is verified by readback without a duplicate', async (
   await assert.rejects(reconcileCard(enrollment, io), /Unverified/);
   assert.equal(writes, 1);
 });
+
+test('connector reads only the enrolled report and scans all Notion pages', async () => {
+  const { createCardConnectors } = require('./n8n-card-connectors.cjs');
+  const cardId = '12345678-1234-1234-1234-123456789abc';
+  const artifact = { name: 'development-ci-report-2-1', id: 9, expired: false, size_in_bytes: 20 };
+  const report = { run_id: 2 };
+  const github = async (method, path) => {
+    assert.equal(method, 'GET');
+    if (path.endsWith('/artifacts?per_page=100')) return { artifacts, total_count: artifacts.length };
+    return {};
+  };
+  let artifacts = [artifact], downloads = 0;
+  let decoded = [{ name: 'ci-report.json', data: Buffer.from(JSON.stringify(report)) }];
+  const ports = createCardConnectors({
+    github,
+    downloadZip: async (path) => {
+      assert.equal(path, '/repos/smartsoft001/galena-mvno/actions/artifacts/9/zip');
+      downloads++;
+      return Buffer.from('fixture archive');
+    },
+    unzip: async () => decoded,
+    notion: async (method, path) => {
+      assert.equal(method, 'GET');
+      if (path.includes('/pages/')) return { id: cardId };
+      if (!path.includes('start_cursor=')) return { results: [], has_more: true, next_cursor: 'next' };
+      return { results: [{ type: 'paragraph', paragraph: { rich_text: [
+        { text: { content: ' [development-ci:2:1]' } },
+      ] } }], has_more: false };
+    },
+    postgres: async (sql, params) => {
+      assert.match(sql, /ON CONFLICT DO NOTHING/);
+      assert.deepEqual(params, [cardId, '[development-ci:2:1]']);
+      return [];
+    },
+  });
+  const enrollment = { runId: 2, pr: 3, cardId };
+  assert.deepEqual((await ports.readEvidence(enrollment)).report, report);
+  assert.deepEqual(await ports.readMarkers(cardId), ['development-ci:2:1']);
+  assert.equal(await ports.reserveMarker(cardId, '[development-ci:2:1]'), false);
+  artifacts = [artifact, { ...artifact, id: 10 }];
+  await assert.rejects(ports.readEvidence(enrollment), /ambiguous/);
+  assert.equal(downloads, 1);
+  artifacts = [artifact];
+  decoded = [{ name: '../ci-report.json', data: Buffer.from('{}') }];
+  await assert.rejects(ports.readEvidence(enrollment), /archive contents/);
+});

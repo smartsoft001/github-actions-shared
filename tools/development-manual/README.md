@@ -84,3 +84,17 @@ inserts the pair (card ID, marker) and returns true only for the first insert.
 Use a persistent store with a unique key, and keep the reservation after an
 uncertain append. `appendChild` adds one block. A false verification result
 requires readback or operator reconciliation before any new write.
+
+`createCardConnectors` stages the fixed API routes, artifact selection, Notion
+pagination and parameterized PostgreSQL reservation. The migration is
+`n8n-card-reservations.sql`. The n8n HTTP nodes must pin their GitHub and Notion
+hosts. Download the GitHub artifact redirect without forwarding the GitHub
+authorization header to the storage host. Enforce the archive size and expanded
+size limits during download and decompression. Use an in-memory archive decoder
+that does not extract files to the runner filesystem. The optional trace port
+accepts receipts only from the trusted model process.
+
+Run the connector and reconciliation tests with
+`node --test tools/development-manual/n8n-card-update.test.cjs`. These adapters
+are prepared for workflow integration. They do not install the PostgreSQL
+schema or register a workflow on a live n8n instance.
