@@ -51,3 +51,28 @@ Use a single dedicated trusted finalizer on ai-os-server with SQLite on persiste
 The staged `finalize` entry point consumes the pinned subject, checks and review. Its protected configuration is `DEVELOPMENT_MANUAL_TRACE_TARGET` (approval digest as `approval_sha256`, approved `project_id` and existing AI OS `task_id`), `DEVELOPMENT_MANUAL_RESERVATIONS_DB`, the project-scoped `DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY` and `DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY`, and a scoped `DEVELOPMENT_MANUAL_NOTION_TOKEN`. Supply these only to the finalizer, outside PR-controlled inputs. Before activation, the reusable workflow needs new reviewed pins and dedicated runner routing, and the existing paid gate needs separate acceptance.
 
 The finalizer validates the card and run, obtains a matching Langfuse readback and adds a paragraph link to the existing AI OS card. The report includes the verified URL. Reconciliation reads the same trace and scans the card before attempting any write. If an append was reserved but no link is visible, reconcile by reading the card without issuing another PATCH. Decision and status are separate from the card body.
+
+### Proposed separation of CI, model telemetry, and task updates
+
+The reusable workflow now produces only deterministic check evidence and
+`development-ci-report-<run_id>-<attempt>` after successful checks. The report
+has no merge authority. It requires no model, Langfuse or Notion credentials.
+
+A separate, trusted model process can use `publish_model_trace` with the
+existing reservation-backed Langfuse publisher after the model returns. It owns
+the credentials and supplies metadata bound to the CI report subject. This
+change does not provision or dispatch that model process.
+
+For the n8n draft, fetch the enrolled GitHub run, its exact report artifact,
+the live PR and the existing card through authenticated nodes. Reject missing,
+expired, duplicate or differently named artifacts and decode the single
+`ci-report.json` from the enrolled run. Source enrollment from the trusted task
+registry. Supply a trace receipt only from the authenticated model process
+after its readback verification. Read all card children and extract exact
+`[development-ci:…]` markers. Run `planCardUpdate` from `n8n-card-update.cjs`
+with those inputs, and append the returned children to the specified card
+only if the list is nonempty. Serialize reads and appends for a card, then
+verify the markers by readback. On an uncertain append, reconcile by reading
+before allowing another write. The planner does not change card properties
+or trigger any merge. The n8n wiring and credential enrollment are staged
+integration work and require a separate live rollout.
