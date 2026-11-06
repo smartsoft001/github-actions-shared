@@ -69,7 +69,7 @@ def validate_approval(a, now):
             m['cost_acceptance'] == 'cli-estimate-plus-runner-usage', 'CLI estimate and runner usage must be explicitly accepted')
 
 
-def validate_context(a, c, s, now):
+def validate_context(a, c, s, now, *, ci_only=False):
     validate_approval(a, now)
     require(c.get('event') == 'workflow_dispatch' and c.get('ref') == 'refs/heads/master', 'trusted default branch dispatch required')
     require(c.get('sha') == c.get('workflow_sha') == a['execution_sha'] and c.get('shared_sha') == a['shared_sha'] and
@@ -95,10 +95,11 @@ def validate_context(a, c, s, now):
             run['triggering_actor'].get('login') == c.get('triggering_actor'), 'live actor/triggering actor mismatch')
     require(s.get('wrapper_mode') in ('100644', '100755') and s.get('wrapper_blob') == a['wrapper_blob_sha'], 'unaccepted execution wrapper')
     environment, policies = s.get('environment', {}), s.get('branches', {})
-    require(environment.get('name') == ENVIRONMENT and environment.get('deployment_branch_policy') ==
+    if not ci_only:
+        require(environment.get('name') == ENVIRONMENT and environment.get('deployment_branch_policy') ==
             {'protected_branches': False, 'custom_branch_policies': True}, 'dedicated custom environment branch policy required')
-    rules = policies.get('branch_policies')
-    require(policies.get('total_count') == 1 and isinstance(rules, list) and len(rules) == 1 and
+        rules = policies.get('branch_policies')
+        require(policies.get('total_count') == 1 and isinstance(rules, list) and len(rules) == 1 and
             rules[0].get('name') == 'master' and rules[0].get('type') == 'branch', 'environment must allow exactly master branch, no tags or patterns')
     return {'execution_sha': a['execution_sha'], 'workflow_sha': c['workflow_sha'], 'ref': c['ref'], 'event': c['event'],
             'workflow_id': a['workflow_id'], 'run_id': c['run_id'], 'run_number': c['run_number'], 'run_attempt': 1,
@@ -133,16 +134,18 @@ def api(path):
         return json.load(response)
 
 
-def live_snapshot(a, c):
+def live_snapshot(a, c, *, ci_only=False):
     tree = core.source_tree(a['execution_sha']); entry = tree.get(WRAPPER, {})
     blob, _ = core.content(WRAPPER, a['execution_sha'])
     require(blob == entry.get('sha'), 'wrapper tree/content mismatch')
-    return {'repo': api(f'repos/{REPO}'), 'master': api(f'repos/{REPO}/branches/master'),
+    snapshot = {'repo': api(f'repos/{REPO}'), 'master': api(f'repos/{REPO}/branches/master'),
             'workflow': api(f'repos/{REPO}/actions/workflows/{a["workflow_id"]}'),
             'run': api(f'repos/{REPO}/actions/runs/{c["run_id"]}'),
-            'wrapper_blob': blob, 'wrapper_mode': entry.get('mode'),
-            'environment': api(f'repos/{REPO}/environments/{ENVIRONMENT}'),
-            'branches': api(f'repos/{REPO}/environments/{ENVIRONMENT}/deployment-branch-policies?per_page=100')}
+            'wrapper_blob': blob, 'wrapper_mode': entry.get('mode')}
+    if not ci_only:
+        snapshot['environment'] = api(f'repos/{REPO}/environments/{ENVIRONMENT}')
+        snapshot['branches'] = api(f'repos/{REPO}/environments/{ENVIRONMENT}/deployment-branch-policies?per_page=100')
+    return snapshot
 
 
 def context(env, approved_shared_sha):
@@ -209,6 +212,19 @@ def sanitize_cli_result(raw):
     return safe
 
 
+def make_ci_report(a, execution, subject, checks):
+    validate_checks(subject, checks)
+    return {
+        'schema_version': 1, 'contract': 'development-ci-report-v1',
+        'report_only': True, 'merge_eligible': False, 'result': 'passed',
+        'repository': a['repository'], 'pr_number': subject['pr_number'],
+        'head_sha': subject['head_sha'], 'base_sha': subject['base_sha'],
+        'execution_sha': execution['execution_sha'], 'run_id': execution['run_id'],
+        'run_attempt': execution['run_attempt'], 'subject_sha256': core.digest(subject),
+        'checks': checks,
+    }
+
+
 def validated_review(a, execution, subject, checks, review):
     require(subject.get('contract') == CONTRACT and subject.get('execution_sha') == execution.get('execution_sha') == a['execution_sha'] and
             subject.get('head_sha') == a['mandate']['head_sha'] and subject.get('base_sha') == a['mandate']['base_sha'] and
@@ -241,6 +257,15 @@ def make_receipt(a, execution, subject, checks, review):
             'telemetry': telemetry, 'completed_at': utc_now()}
 
 
+def publish_model_trace(project, event, publisher):
+    """Called by the trusted process owning the completed model invocation."""
+    expected = telemetry.prepare(project, event)
+    result = publisher.publish(project, event)
+    require(result == telemetry.receipt(expected, False) or result == telemetry.receipt(expected, True),
+            'Langfuse receipt is missing or does not match this run')
+    return result
+
+
 def finalize_with_trace(a, execution, subject, checks, review, *, project, publisher, card, reservations):
     raw, _, cost = validated_review(a, execution, subject, checks, review)
     event = {
@@ -253,11 +278,9 @@ def finalize_with_trace(a, execution, subject, checks, review, *, project, publi
         'cli_total_cost_usd_estimate': cost, 'model_usage': raw['modelUsage'],
         'pr_number': subject['pr_number'], 'task_id': card.id,
     }
-    expected = telemetry.prepare(project, event)
     card.verify()
-    result = publisher.publish(project, event)
-    require(result == telemetry.receipt(expected, False) or result == telemetry.receipt(expected, True),
-            'Langfuse receipt is missing or does not match this run')
+    result = publish_model_trace(project, event, publisher)
+    expected = telemetry.prepare(project, event)
     report = make_receipt(a, execution, subject, checks, {**review, 'telemetry_receipt': result})
     report['trace_url'] = link_trace(card, reservations, project, expected['trace_id'])
     return report
@@ -269,12 +292,13 @@ def require_paid_telemetry():
 
 def main():
     mode = sys.argv[1] if len(sys.argv) == 2 else ''
-    require(mode in ('prepare', 'checks', 'review', 'finalize'), 'invalid manual mode')
+    require(mode in ('prepare', 'checks', 'ci-report', 'review', 'finalize'), 'invalid manual mode')
     root = Path(os.environ['RUNNER_TEMP']) / 'development-manual'; root.mkdir(parents=True, exist_ok=True)
     a = approval(os.environ)
     c = context(os.environ, a['shared_sha'])
     validate_approval(a, utc_now())
-    execution = validate_context(a, c, live_snapshot(a, c), utc_now())
+    ci_only = mode in ('prepare', 'checks', 'ci-report')
+    execution = validate_context(a, c, live_snapshot(a, c, ci_only=ci_only), utc_now(), ci_only=ci_only)
     if mode == 'prepare':
         files = api(f'repos/{REPO}/pulls/{a["mandate"]["pr_number"]}/files?per_page=100')
         require(isinstance(files, list), 'missing file inventory')
@@ -291,7 +315,8 @@ def main():
                                'workflow_sha': c['workflow_sha'], 'shared_sha': c['shared_sha'], 'helper_sha': c['helper_sha']}
         text = core.bundle(subject, pr, entries); subject['bundle_sha256'] = hashlib.sha256(text.encode()).hexdigest()
         subject['approval_sha256'] = core.digest(a)
-        current_subject(a, subject['paths']); validate_context(a, c, live_snapshot(a, c), utc_now())
+        current_subject(a, subject['paths'])
+        validate_context(a, c, live_snapshot(a, c, ci_only=True), utc_now(), ci_only=True)
         core.write(root / 'subject.json', subject); core.write(root / 'execution.json', execution)
         (root / 'bundle.txt').write_text(text)
         core.output('head_sha', subject['head_sha']); core.output('base_sha', subject['base_sha'])
@@ -316,6 +341,9 @@ def main():
         for name in ('dist', '.angular', 'coverage'): (candidate / name).mkdir()
         # Existing host orchestrator expects this readonly subject filename.
         core.write(root / 'checks.json', core.execute_checks(candidate, root, subject))
+    elif mode == 'ci-report':
+        report = make_ci_report(a, execution, subject, core.read(root / 'checks.json'))
+        core.write(root / 'ci-report.json', report)
     elif mode == 'review':
         validate_checks(subject, core.read(root / 'checks.json'))
         require(hashlib.sha256((root / 'bundle.txt').read_bytes()).hexdigest() == subject['bundle_sha256'], 'review bundle mismatch')
