@@ -120,9 +120,25 @@ class LangfuseTests(unittest.TestCase):
         self.assertTrue(result['acknowledged']); self.assertFalse(result['post_attempted'])
         self.assertEqual([m for m, _, _ in transport.calls], ['GET', 'GET'])
 
+    def test_langfuse_queue_job_requires_complete_readback(self):
+        plan = lf.prepare(PROJECT, event())
+        projects = {'data': [{'id': PROJECT}]}
+        job = {'id': '42', 'name': 'otel-ingestion-job', 'data': {}}
+        for readbacks, verified in (([page(plan)], True), ([EMPTY] * 3, False)):
+            with self.subTest(verified=verified), patch.object(lf.time, 'sleep'):
+                transport = MemoryHTTP([projects, EMPTY, job, *readbacks])
+                result = lf.Publisher(transport).publish(PROJECT, event())
+                self.assertEqual(result['readback_verified'], verified)
+                self.assertEqual([m for m, _, _ in transport.calls], ['GET', 'GET', 'POST'] + ['GET'] * len(readbacks))
+                if not verified:
+                    self.assertEqual(result['reason_code'], 'readback_missing')
+
     def test_partial_success_timeout_and_corrupt_post_never_trigger_second_post(self):
         for reply in ({'partialSuccess': {'rejectedSpans': '1', 'errorMessage': 'fake-secret'}},
                       {'partialSuccess': {}}, {'unexpected': 'fake-secret'},
+                      {'id': '42', 'name': 'otel-ingestion-job', 'data': {}, 'error': 'fake-secret'},
+                      {'id': '42', 'name': 'otel-ingestion-job', 'data': {}, 'partialSuccess': {'rejectedSpans': 1}},
+                      {'id': '', 'name': 'otel-ingestion-job', 'data': {}},
                       TimeoutError('fake-secret'), lf.TelemetryError('fake-secret')):
             transport = MemoryHTTP([{'data': [{'id': PROJECT}]}, EMPTY, reply,
                                     {'data': [{'id': PROJECT}]}, EMPTY])

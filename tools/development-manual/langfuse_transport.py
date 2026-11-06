@@ -222,6 +222,19 @@ def receipt(plan, attempted):
             'post_attempted': attempted, 'write_status': 'verified', 'result': 'acknowledged'}
 
 
+def accepted_post(response):
+    if not isinstance(response, dict):
+        return False
+    if not response:
+        return True
+    # Langfuse can return the serialized queue job after enqueueing the batch.
+    job_id = response.get('id')
+    return (response.get('name') == 'otel-ingestion-job'
+            and isinstance(job_id, str) and bool(job_id.strip())
+            and isinstance(response.get('data'), dict)
+            and not {'partialSuccess', 'error', 'errors'}.intersection(response))
+
+
 class Publisher:
     """One object per approved execution; never retries writes, including after timeout.
 
@@ -255,7 +268,7 @@ class Publisher:
             except Exception:
                 raise TelemetryError('post_outcome_unknown') from None
             if isinstance(accepted, dict) and 'partialSuccess' in accepted: state = 'partial'
-            require(type(accepted) is dict and accepted == {}, 'post_not_fully_accepted')
+            require(accepted_post(accepted), 'post_not_fully_accepted')
             state = 'accepted_unverified'
             for attempt in range(3):
                 if attempt: time.sleep(0.2)
