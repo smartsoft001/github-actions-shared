@@ -20,3 +20,5 @@ jobs:
           for suite in development-tester development-manual development-tele; do
             python3 -m unittest discover -s "tools/$suite" -p 'test_*.py'
           done
+      - name: Verify n8n reconciliation offline
+        run: node --test tools/development-manual/n8n-card-update.test.cjs
