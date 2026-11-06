@@ -43,3 +43,11 @@ python3 -m py_compile tools/development-manual/manual.py tools/development-manua
 ```
 
 Local test fixtures are synthetic, including telemetry acknowledgments. They are not evidence of Langfuse, a real GitHub manual run, model billing or Docker checks. Live acceptance and a real engine remain distinct requirements.
+
+### Staged finalizer for package 7
+
+Use a single dedicated trusted finalizer on ai-os-server with SQLite on persistent local disk. The current ephemeral GitHub runner cannot provide this reservation guarantee. Provision the database once with `SQLiteReservations(path).initialize()` in an owner-only directory outside the checkout and artifact directories. Point every invocation at the same database. A missing database at runtime blocks new writes. Do not initialize a new database as a recovery step.
+
+The staged `finalize` entry point consumes the pinned subject, checks and review. Its protected configuration is `DEVELOPMENT_MANUAL_TRACE_TARGET` (approval digest as `approval_sha256`, approved `project_id` and existing AI OS `task_id`), `DEVELOPMENT_MANUAL_RESERVATIONS_DB`, the project-scoped `DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY` and `DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY`, and a scoped `DEVELOPMENT_MANUAL_NOTION_TOKEN`. Supply these only to the finalizer, outside PR-controlled inputs. Before activation, the reusable workflow needs new reviewed pins and dedicated runner routing, and the existing paid gate needs separate acceptance.
+
+The finalizer validates the card and run, obtains a matching Langfuse readback and adds a paragraph link to the existing AI OS card. The report includes the verified URL. Reconciliation reads the same trace and scans the card before attempting any write. If an append was reserved but no link is visible, reconcile by reading the card without issuing another PATCH. Decision and status are separate from the card body.

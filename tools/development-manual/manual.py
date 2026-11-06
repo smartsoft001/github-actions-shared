@@ -17,13 +17,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'development-tester'))
 import tester as core
 import mvno_profile
+import langfuse_transport as telemetry
+from trace_link import NotionCard, link_trace
 
 CONTRACT = 'trusted-manual-v1'
 REPO, REPO_ID, ACTOR_ID = 'smartsoft001/galena-mvno', 567923474, 6243316
 WRAPPER = '.github/workflows/development-tester-manual.yml'
 SHARED = 'smartsoft001/github-actions-shared/.github/workflows/development-tester-manual.yml'
 ENVIRONMENT = 'development-manual-review'
-# No Langfuse adapter/credential is added in this package. Enabling YAML alone cannot run paid AI.
+# Keep paid execution gated until the staged finalizer is accepted on its dedicated runner.
 LANGFUSE_ADAPTER_IMPLEMENTED = False
 require = core.require
 
@@ -143,9 +145,11 @@ def live_snapshot(a, c):
             'branches': api(f'repos/{REPO}/environments/{ENVIRONMENT}/deployment-branch-policies?per_page=100')}
 
 
-def context(env):
+def context(env, approved_shared_sha):
     result = {key: env['DM_' + key.upper()] for key in ('event', 'ref', 'sha', 'workflow_sha', 'triggering_actor',
-              'shared_sha', 'helper_sha', 'head_sha', 'base_sha', 'mandate_id')}
+              'helper_sha', 'head_sha', 'base_sha', 'mandate_id')}
+    # validate_context verifies this approved SHA against GitHub’s live referenced_workflows.
+    result['shared_sha'] = approved_shared_sha
     for key in ('run_id', 'run_number', 'run_attempt', 'actor_id', 'pr_number'):
         value = env['DM_' + key.upper()]; require(re.fullmatch(r'[1-9]\d*', value), 'invalid context numeric identity')
         result[key] = int(value)
@@ -205,7 +209,7 @@ def sanitize_cli_result(raw):
     return safe
 
 
-def make_receipt(a, execution, subject, checks, review):
+def validated_review(a, execution, subject, checks, review):
     require(subject.get('contract') == CONTRACT and subject.get('execution_sha') == execution.get('execution_sha') == a['execution_sha'] and
             subject.get('head_sha') == a['mandate']['head_sha'] and subject.get('base_sha') == a['mandate']['base_sha'] and
             subject.get('pr_number') == a['mandate']['pr_number'], 'receipt subject/execution mismatch')
@@ -217,6 +221,11 @@ def make_receipt(a, execution, subject, checks, review):
     require(raw.get('session_id') == review.get('requested_session_id'), 'review session mismatch')
     cost = raw.get('total_cost_usd')
     require(type(cost) in (int, float) and math.isfinite(cost) and cost >= 0, 'missing CLI-reported cost estimate')
+    return raw, result, cost
+
+
+def make_receipt(a, execution, subject, checks, review):
+    raw, result, cost = validated_review(a, execution, subject, checks, review)
     telemetry = review.get('telemetry_receipt', {})
     require(telemetry.get('provider') == 'langfuse' and telemetry.get('acknowledged') is True and
             all(isinstance(telemetry.get(k), str) and telemetry[k] for k in ('trace_id', 'observation_id')), 'accepted telemetry receipt required')
@@ -232,6 +241,28 @@ def make_receipt(a, execution, subject, checks, review):
             'telemetry': telemetry, 'completed_at': utc_now()}
 
 
+def finalize_with_trace(a, execution, subject, checks, review, *, project, publisher, card, reservations):
+    raw, _, cost = validated_review(a, execution, subject, checks, review)
+    event = {
+        'schema_version': 1, 'repository': a['repository'], 'repository_id': a['repository_id'],
+        'execution_sha': execution['execution_sha'], 'run_id': execution['run_id'],
+        'run_attempt': execution['run_attempt'], 'subject_head_sha': subject['head_sha'],
+        'subject_base_sha': subject['base_sha'], 'subject_sha256': core.digest(subject),
+        'session_id': raw['session_id'], 'started_at': review['started_at'],
+        'ended_at': review['ended_at'], 'result_code': 'passed',
+        'cli_total_cost_usd_estimate': cost, 'model_usage': raw['modelUsage'],
+        'pr_number': subject['pr_number'], 'task_id': card.id,
+    }
+    expected = telemetry.prepare(project, event)
+    card.verify()
+    result = publisher.publish(project, event)
+    require(result == telemetry.receipt(expected, False) or result == telemetry.receipt(expected, True),
+            'Langfuse receipt is missing or does not match this run')
+    report = make_receipt(a, execution, subject, checks, {**review, 'telemetry_receipt': result})
+    report['trace_url'] = link_trace(card, reservations, project, expected['trace_id'])
+    return report
+
+
 def require_paid_telemetry():
     require(LANGFUSE_ADAPTER_IMPLEMENTED, 'paid AI blocked: an accepted Langfuse adapter is not implemented')
 
@@ -240,7 +271,8 @@ def main():
     mode = sys.argv[1] if len(sys.argv) == 2 else ''
     require(mode in ('prepare', 'checks', 'review', 'finalize'), 'invalid manual mode')
     root = Path(os.environ['RUNNER_TEMP']) / 'development-manual'; root.mkdir(parents=True, exist_ok=True)
-    a, c = approval(os.environ), context(os.environ)
+    a = approval(os.environ)
+    c = context(os.environ, a['shared_sha'])
     validate_approval(a, utc_now())
     execution = validate_context(a, c, live_snapshot(a, c), utc_now())
     if mode == 'prepare':
@@ -288,7 +320,7 @@ def main():
         validate_checks(subject, core.read(root / 'checks.json'))
         require(hashlib.sha256((root / 'bundle.txt').read_bytes()).hexdigest() == subject['bundle_sha256'], 'review bundle mismatch')
         require_paid_telemetry()
-        # Kept unreachable until a separately reviewed Langfuse adapter is implemented.
+        # Kept unreachable until a separately reviewed runtime activation.
         token = os.environ.get('DEVELOPMENT_MANUAL_CLAUDE_OAUTH_TOKEN'); require(bool(token), 'dedicated environment credential missing')
         clean = root / 'review-cwd'; clean.mkdir()
         child = {'PATH': os.environ['PATH'], 'CLAUDE_CONFIG_DIR': str(root / 'claude-config'), 'CLAUDE_CODE_OAUTH_TOKEN': token,
@@ -300,18 +332,29 @@ def main():
                   'Any missing context belongs in unverified and blocks the report. DATA\n' + (root / 'bundle.txt').read_text())
         # Repeat live run/attempt/actor/ref/mandate and source checks immediately before any model process.
         validate_context(a, c, live_snapshot(a, c), utc_now()); current_subject(a, subject['paths'])
+        started_at = utc_now()
         result = core.run_logged(argv, root / 'review-raw.json', cwd=clean, env=child, stdin=prompt,
                                  stderr=root / 'review-stderr.log', timeout=600)
+        ended_at = utc_now()
         require(result['exit_code'] == 0, 'review CLI failed')
         raw = sanitize_cli_result(core.read(root / 'review-raw.json'))
         require(raw.get('session_id') == session, 'unexpected actual review session')
         core.write(root / 'review.json', {'execution': execution, 'subject_sha256': core.digest(subject),
-                                         'requested_session_id': session, 'cli_result': raw})
+                                         'requested_session_id': session, 'cli_result': raw,
+                                         'started_at': started_at, 'ended_at': ended_at})
         core.validate_review(raw)
     else:
         require_paid_telemetry()
-        report = make_receipt(a, execution, subject, core.read(root / 'checks.json'), core.read(root / 'review.json'))
         current_subject(a, subject['paths']); validate_context(a, c, live_snapshot(a, c), utc_now())
+        target = json.loads(os.environ['DEVELOPMENT_MANUAL_TRACE_TARGET'])
+        keys(target, 'approval_sha256 project_id task_id')
+        require(target['approval_sha256'] == core.digest(a), 'trace target does not match approved mandate')
+        reservations = telemetry.SQLiteReservations(os.environ['DEVELOPMENT_MANUAL_RESERVATIONS_DB'])
+        publisher = telemetry.Publisher(telemetry.HTTPTransport(os.environ['DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY'],
+                                        os.environ['DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY']), reservations=reservations)
+        card = NotionCard(target['task_id'], os.environ['DEVELOPMENT_MANUAL_NOTION_TOKEN'])
+        report = finalize_with_trace(a, execution, subject, core.read(root / 'checks.json'), core.read(root / 'review.json'),
+                                     project=target['project_id'], publisher=publisher, card=card, reservations=reservations)
         core.write(root / 'receipt.json', report)
 
 

@@ -37,7 +37,7 @@ env:
   DM_HEAD_SHA: ${{ inputs.head_sha }}
   DM_BASE_SHA: ${{ inputs.base_sha }}
   DM_MANDATE_ID: ${{ inputs.mandate_id }}
-  DM_HELPER_SHA: 919fb5d6bf0919951c80fb4645f20875123cb017
+  DM_HELPER_SHA: fc09aec975d3133880b0ead51aa292ce080c3560
 
 jobs:
   prepare:
@@ -51,12 +51,11 @@ jobs:
     steps:
       - name: Validate trusted execution, one-run mandate and live subject
         id: prepare
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
         with:
           mode: prepare
         env:
           GH_TOKEN: ${{ github.token }}
-          DM_SHARED_SHA: ${{ job.workflow_sha }}
       - name: Upload frozen subject
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -89,12 +88,11 @@ jobs:
           name: development-manual-subject-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Run fixed checks in secret-free disposable containers
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
         with:
           mode: checks
         env:
           GH_TOKEN: ${{ github.token }}
-          DM_SHARED_SHA: ${{ job.workflow_sha }}
       - name: Retain host receipts and bounded check logs
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -145,12 +143,11 @@ jobs:
           name: development-manual-checks-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Fresh review (blocked until separately accepted Langfuse integration)
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
         with:
           mode: review
         env:
           GH_TOKEN: ${{ github.token }}
-          DM_SHARED_SHA: ${{ job.workflow_sha }}
           DEVELOPMENT_MANUAL_CLAUDE_OAUTH_TOKEN: ${{ secrets.DEVELOPMENT_MANUAL_CLAUDE_OAUTH_TOKEN }}
       - name: Retain structured review, including findings
         if: ${{ always() }}
@@ -164,16 +161,13 @@ jobs:
   manual-report:
     name: manual-report-only
     needs: [prepare, checks, ai-review]
-    if: ${{ always() && github.run_attempt == '1' }}
-    runs-on: ubuntu-24.04
+    if: ${{ success() && github.run_attempt == '1' && vars.DEVELOPMENT_MANUAL_FINALIZER_ENABLED == 'true' }}
+    runs-on:
+      group: development-finalizer
+      labels: ai-os-server-development-finalizer
+    environment: development-manual-finalizer
     timeout-minutes: 10
     steps:
-      - name: Require all producer jobs to have succeeded
-        env:
-          PREPARE: ${{ needs.prepare.result }}
-          CHECKS: ${{ needs.checks.result }}
-          REVIEW: ${{ needs.ai-review.result }}
-        run: test "$PREPARE" = success && test "$CHECKS" = success && test "$REVIEW" = success
       - name: Download frozen subject
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -190,12 +184,16 @@ jobs:
           name: development-manual-review-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Validate reports and reread live PR before success
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@919fb5d6bf0919951c80fb4645f20875123cb017
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
         with:
           mode: finalize
         env:
           GH_TOKEN: ${{ github.token }}
-          DM_SHARED_SHA: ${{ job.workflow_sha }}
+          DEVELOPMENT_MANUAL_TRACE_TARGET: ${{ vars.DEVELOPMENT_MANUAL_TRACE_TARGET }}
+          DEVELOPMENT_MANUAL_RESERVATIONS_DB: ${{ vars.DEVELOPMENT_MANUAL_RESERVATIONS_DB }}
+          DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY: ${{ secrets.DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY }}
+          DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY: ${{ secrets.DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY }}
+          DEVELOPMENT_MANUAL_NOTION_TOKEN: ${{ secrets.DEVELOPMENT_MANUAL_NOTION_TOKEN }}
       - name: Upload validated report for human review
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
