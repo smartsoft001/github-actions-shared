@@ -53,3 +53,27 @@ function planCardUpdate({ enrollment, run, pull, report, card, existingKeys, tra
 }
 
 if (typeof module !== 'undefined') module.exports = { planCardUpdate };
+
+// n8n supplies authenticated connectors and a durable, atomic reservation store.
+// A reservation survives an ambiguous append, so a retry only reads that block.
+async function reconcileCard(enrollment, io) {
+  const { run, pull, report, card, trace } = await io.readEvidence(enrollment);
+  const existingKeys = await io.readMarkers(card.id);
+  const plan = planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace });
+  const outcomes = [];
+  for (const child of plan.children) {
+    const marker = child.paragraph.rich_text[1].text.content.trim();
+    if (await io.reserveMarker(plan.cardId, marker)) {
+      try {
+        await io.appendChild(plan.cardId, child);
+      } catch {
+        // The request may have committed. Read back before reporting its outcome.
+      }
+    }
+    const visible = await io.readMarkers(plan.cardId);
+    outcomes.push({ marker, verified: visible.includes(marker.slice(1, -1)) });
+  }
+  return { cardId: plan.cardId, outcomes, verified: outcomes.every((entry) => entry.verified) };
+}
+
+if (typeof module !== 'undefined') module.exports.reconcileCard = reconcileCard;

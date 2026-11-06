@@ -76,3 +76,11 @@ verify the markers by readback. On an uncertain append, reconcile by reading
 before allowing another write. The planner does not change card properties
 or trigger any merge. The n8n wiring and credential enrollment are staged
 integration work and require a separate live rollout.
+
+The staged `reconcileCard` entry point defines the connector boundary for n8n.
+Its `readEvidence` port must apply the artifact checks above. `readMarkers`
+returns complete marker keys without brackets. `reserveMarker` atomically
+inserts the pair (card ID, marker) and returns true only for the first insert.
+Use a persistent store with a unique key, and keep the reservation after an
+uncertain append. `appendChild` adds one block. A false verification result
+requires readback or operator reconciliation before any new write.
