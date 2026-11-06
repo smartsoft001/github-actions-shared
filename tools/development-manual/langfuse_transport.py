@@ -9,11 +9,14 @@ import json
 import math
 import re
 import socket
+import sqlite3
 import ssl
 import threading
 import time
 import uuid
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 HOST = 'langfuse.smartsoft.biz.pl'
@@ -38,7 +41,8 @@ class TelemetryError(ValueError):
         allowed = {'invalid_input', 'unsafe_endpoint', 'invalid_credentials', 'transport_failed',
                    'http_redirect', 'http_status', 'response_invalid', 'response_oversized',
                    'project_mismatch', 'readback_invalid', 'readback_mismatch', 'readback_incomplete',
-                   'post_not_fully_accepted', 'post_outcome_unknown', 'already_attempted', 'readback_missing'}
+                   'post_not_fully_accepted', 'post_outcome_unknown', 'already_attempted', 'readback_missing',
+                   'reservation_unavailable', 'reservation_conflict'}
         self.code = code if code in allowed else 'transport_failed'
         super().__init__(self.code)
 
@@ -235,14 +239,46 @@ def accepted_post(response):
             and not {'partialSuccess', 'error', 'errors'}.intersection(response))
 
 
+class SQLiteReservations:
+    """Reservations shared by publishers on one host with a durable local disk."""
+
+    def __init__(self, path):
+        self._uri = Path(path).resolve().as_uri()
+
+    def initialize(self):
+        with closing(sqlite3.connect(self._uri + '?mode=rwc', uri=True)) as db, db:
+            db.execute('''CREATE TABLE IF NOT EXISTS telemetry_reservations (
+                project_id TEXT NOT NULL,
+                trace_id TEXT NOT NULL,
+                binding TEXT NOT NULL,
+                PRIMARY KEY (project_id, trace_id)
+            )''')
+
+    def reserve(self, project_id, trace_id, binding):
+        with closing(sqlite3.connect(self._uri + '?mode=rw', uri=True)) as db, db:
+            db.execute('PRAGMA synchronous = FULL')
+            inserted = db.execute(
+                'INSERT INTO telemetry_reservations VALUES (?, ?, ?) '
+                'ON CONFLICT(project_id, trace_id) DO NOTHING',
+                (project_id, trace_id, binding),
+            ).rowcount == 1
+            stored = db.execute(
+                'SELECT binding FROM telemetry_reservations WHERE project_id = ? AND trace_id = ?',
+                (project_id, trace_id),
+            ).fetchone()
+            require(stored == (binding,), 'reservation_conflict')
+        return inserted
+
+
 class Publisher:
     """One object per approved execution; never retries writes, including after timeout.
 
-    A local lock/set prevents duplicate POST from this object, not across processes.
-    Existing fully matched readback can be verified without POST after a restart.
+    Publishers sharing a reservation store can reconcile by readback after restart.
+    The legacy mode without a store deduplicates only within one Publisher.
     """
-    def __init__(self, transport):
+    def __init__(self, transport, *, reservations=None):
         self.transport = transport
+        self._reservations = reservations
         self._attempted = set()
         self._lock = threading.Lock()
 
@@ -259,9 +295,19 @@ class Publisher:
                     len(projects['data']) == 1 and isinstance(projects['data'][0], dict) and
                     projects['data'][0].get('id') == project_id, 'project_mismatch')
             existing = readback(plan, self.transport.request('GET', plan['query_path']))
+            require(existing != 'partial', 'readback_incomplete')
+            reserved = True
+            if self._reservations is not None:
+                try:
+                    reserved = self._reservations.reserve(
+                        project_id, plan['trace_id'], plan['binding_sha256'],
+                    )
+                except TelemetryError:
+                    raise
+                except Exception:
+                    raise TelemetryError('reservation_unavailable') from None
             if existing == 'complete': return receipt(plan, False)
-            require(existing == 'empty', 'readback_incomplete')
-            require(plan['trace_id'] not in self._attempted, 'already_attempted')
+            require(reserved and plan['trace_id'] not in self._attempted, 'already_attempted')
             self._attempted.add(plan['trace_id']); attempted = True; state = 'unknown'
             try:
                 accepted = self.transport.request('POST', TRACES, plan['payload'])

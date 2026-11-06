@@ -3,7 +3,11 @@ import contextlib
 import io
 import json
 import os
+import tempfile
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from unittest.mock import patch
 
 import langfuse_transport as lf
@@ -41,6 +45,53 @@ class MemoryHTTP:
 
 
 class LangfuseTests(unittest.TestCase):
+    def test_concurrent_publishers_share_one_post_and_reconcile_after_restart(self):
+        value = event()
+        plan = lf.prepare(PROJECT, value)
+        projects = {'data': [{'id': PROJECT}]}
+        barrier = threading.Barrier(2, timeout=5)
+
+        class DelayedTransport(MemoryHTTP):
+            def request(self, method, path, body=None):
+                if path == plan['query_path']:
+                    barrier.wait()
+                return super().request(method, path, body)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'reservations.sqlite3'
+            lf.SQLiteReservations(path).initialize()
+            transports = [DelayedTransport([projects, EMPTY, TimeoutError()]) for _ in range(2)]
+            publishers = [lf.Publisher(t, reservations=lf.SQLiteReservations(path)) for t in transports]
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(lambda publisher: publisher.publish(PROJECT, value), publishers))
+            self.assertCountEqual([r['reason_code'] for r in results], ['already_attempted', 'post_outcome_unknown'])
+            self.assertEqual(sum(m == 'POST' for t in transports for m, _, _ in t.calls), 1)
+
+            for observed, expected in ((EMPTY, False), (page(plan), True)):
+                transport = MemoryHTTP([projects, observed])
+                publisher = lf.Publisher(transport, reservations=lf.SQLiteReservations(path))
+                result = publisher.publish(PROJECT, value)
+                self.assertEqual(result['readback_verified'], expected)
+                self.assertEqual([m for m, _, _ in transport.calls], ['GET', 'GET'])
+
+            changed = copy.deepcopy(value)
+            changed['result_code'] = 'findings'
+            transport = MemoryHTTP([projects, EMPTY])
+            result = lf.Publisher(transport, reservations=lf.SQLiteReservations(path)).publish(PROJECT, changed)
+            self.assertEqual(result['reason_code'], 'reservation_conflict')
+            self.assertFalse(result['post_attempted'])
+
+    def test_missing_reservation_database_blocks_post(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'reservations.sqlite3'
+            reservations = lf.SQLiteReservations(path)
+            reservations.initialize()
+            path.unlink()
+            transport = MemoryHTTP([{'data': [{'id': PROJECT}]}, EMPTY])
+            result = lf.Publisher(transport, reservations=reservations).publish(PROJECT, event())
+            self.assertEqual(result['reason_code'], 'reservation_unavailable')
+            self.assertEqual([m for m, _, _ in transport.calls], ['GET', 'GET'])
+
     def test_multiple_models_have_one_root_and_no_duplicated_aggregate_cost(self):
         value = event(); value['model_usage']['other-model'] = dict(value['model_usage']['fixture-model'], costUSD=0.02)
         value['cli_total_cost_usd_estimate'] = 0.05
