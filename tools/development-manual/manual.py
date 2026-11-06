@@ -145,9 +145,11 @@ def live_snapshot(a, c):
             'branches': api(f'repos/{REPO}/environments/{ENVIRONMENT}/deployment-branch-policies?per_page=100')}
 
 
-def context(env):
+def context(env, approved_shared_sha):
     result = {key: env['DM_' + key.upper()] for key in ('event', 'ref', 'sha', 'workflow_sha', 'triggering_actor',
-              'shared_sha', 'helper_sha', 'head_sha', 'base_sha', 'mandate_id')}
+              'helper_sha', 'head_sha', 'base_sha', 'mandate_id')}
+    # validate_context verifies this approved SHA against GitHub’s live referenced_workflows.
+    result['shared_sha'] = approved_shared_sha
     for key in ('run_id', 'run_number', 'run_attempt', 'actor_id', 'pr_number'):
         value = env['DM_' + key.upper()]; require(re.fullmatch(r'[1-9]\d*', value), 'invalid context numeric identity')
         result[key] = int(value)
@@ -269,7 +271,8 @@ def main():
     mode = sys.argv[1] if len(sys.argv) == 2 else ''
     require(mode in ('prepare', 'checks', 'review', 'finalize'), 'invalid manual mode')
     root = Path(os.environ['RUNNER_TEMP']) / 'development-manual'; root.mkdir(parents=True, exist_ok=True)
-    a, c = approval(os.environ), context(os.environ)
+    a = approval(os.environ)
+    c = context(os.environ, a['shared_sha'])
     validate_approval(a, utc_now())
     execution = validate_context(a, c, live_snapshot(a, c), utc_now())
     if mode == 'prepare':
