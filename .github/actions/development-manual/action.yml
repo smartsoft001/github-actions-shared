@@ -1,0 +1,22 @@
+name: Trusted manual Development evidence producer
+description: Separate report-only contract; paid path blocked until accepted Langfuse integration.
+inputs:
+  mode:
+    description: prepare, checks, review or finalize
+    required: true
+outputs:
+  head_sha:
+    description: Frozen subject head, distinct from execution SHA
+    value: ${{ steps.producer.outputs.head_sha }}
+  base_sha:
+    description: Frozen current development base
+    value: ${{ steps.producer.outputs.base_sha }}
+runs:
+  using: composite
+  steps:
+    - id: producer
+      name: Run pinned manual producer
+      shell: bash
+      env:
+        MANUAL_MODE: ${{ inputs.mode }}
+      run: python3 "$GITHUB_ACTION_PATH/../../../tools/development-manual/manual.py" "$MANUAL_MODE"

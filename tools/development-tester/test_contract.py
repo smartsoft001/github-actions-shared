@@ -2,6 +2,7 @@ import copy
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -46,6 +47,53 @@ def review():
 
 
 class ContractTests(unittest.TestCase):
+    def run_install_driver(self, result):
+        # Execute the actual install branch with I/O intercepted: no npm, writes or network.
+        script = r'''
+const fs = require('node:fs');
+const vm = require('node:vm');
+const captured = {copies: [], commands: [], errors: []};
+const childProcess = {argv: ['node', 'checks.cjs', 'install'], exitCode: 0};
+const modules = {
+  'node:fs': {
+    copyFileSync: (...args) => captured.copies.push(args),
+    cpSync: (...args) => captured.copies.push(args)
+  },
+  'node:child_process': {spawnSync: (...args) => {
+    captured.commands.push(args);
+    return JSON.parse(process.argv[2]);
+  }},
+  'node:module': {createRequire: () => { throw Error('install must not load candidate code'); }}
+};
+vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'), {
+  require: name => { if (!(name in modules)) throw Error('unexpected module'); return modules[name]; },
+  process: childProcess, console: {error: value => captured.errors.push(value)}
+});
+setImmediate(() => console.log(JSON.stringify({...captured, exitCode: childProcess.exitCode})));
+'''
+        output = subprocess.check_output(['node', '-e', script, str(Path(__file__).with_name('checks.cjs')),
+                                          json.dumps(result)], text=True, timeout=5)
+        return json.loads(output)
+
+    def test_install_uses_locked_legacy_peer_resolution_without_lifecycle_scripts(self):
+        result = self.run_install_driver({'status': 0})
+        self.assertEqual(result['exitCode'], 0)
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(result['commands'], [['npm', ['ci', '--legacy-peer-deps', '--ignore-scripts',
+                          '--cache', '/tmp/npm-cache', '--no-audit', '--no-fund'],
+                          {'cwd': '/deps', 'stdio': 'inherit'}]])
+        self.assertEqual(result['copies'], [['/work/package.json', '/deps/package.json'],
+                         ['/work/package-lock.json', '/deps/package-lock.json'],
+                         ['/work/tools/packages', '/deps/tools/packages', {'recursive': True}]])
+
+    def test_failed_install_never_becomes_success_or_retries(self):
+        for failure in ({'status': 1}, {'status': None, 'error': 'fixture spawn error'}):
+            with self.subTest(result=failure):
+                result = self.run_install_driver(failure)
+                self.assertEqual(result['exitCode'], 1)
+                self.assertEqual(len(result['commands']), 1)
+                self.assertEqual(result['errors'], ['Dependency installation failed'])
+
     def test_result_parent_symlink_cannot_reuse_another_directory(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); result = root / 'result'; result.mkdir()

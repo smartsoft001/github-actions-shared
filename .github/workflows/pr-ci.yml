@@ -1,0 +1,22 @@
+name: Shared offline CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Run tester, manual transport and Tele calibration tests
+        run: |
+          for suite in development-tester development-manual development-tele; do
+            python3 -m unittest discover -s "tools/$suite" -p 'test_*.py'
+          done
