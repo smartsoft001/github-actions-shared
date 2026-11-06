@@ -1,5 +1,6 @@
 import copy
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -66,7 +67,7 @@ class ManualTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Langfuse'):
             manual.require_paid_telemetry()
 
-    def test_report_is_report_only_and_never_claims_actual_billing(self):
+    def report_fixture(self):
         a, c, snap, pr = fixture()
         a['mandate']['requirements_sha256'] = manual.core.digest(manual.core.requirements(pr))
         subject = manual.freeze_subject(a, pr, B, B, ['libs/documents/shell/nestjs/src/example.ts'])
@@ -84,6 +85,10 @@ class ManualTests(unittest.TestCase):
                   'cli_result': {'type': 'result', 'subtype': 'success', 'is_error': False, 'session_id': session,
                                  'modelUsage': {'fixture-model': {'inputTokens': 10}}, 'total_cost_usd': 0.1,
                                  'structured_output': {'verdict': 'passed', 'summary': 'Synthetic fixture.', 'findings': [], 'unverified': []}}}
+        return a, execution, subject, checks, review
+
+    def test_report_is_report_only_and_never_claims_actual_billing(self):
+        a, execution, subject, checks, review = self.report_fixture()
         receipt = manual.make_receipt(a, execution, subject, checks, review)
         self.assertFalse(receipt['merge_eligible']); self.assertTrue(receipt['report_only'])
         self.assertEqual(receipt['contract'], 'trusted-manual-v1'); self.assertFalse(receipt['cost']['billing_verified'])
@@ -95,6 +100,81 @@ class ManualTests(unittest.TestCase):
                        lambda ch,rev: rev['cli_result'].update(total_cost_usd=float('nan'))]:
             ch, rev = copy.deepcopy(checks), copy.deepcopy(review); mutate(ch, rev)
             with self.assertRaises(ValueError): manual.make_receipt(a, execution, subject, ch, rev)
+
+    def test_finalizer_reconciles_verified_trace_and_card_after_lost_append_response(self):
+        from langfuse_transport import Publisher, SQLiteReservations, PROJECTS
+        from trace_link import NotionCard, TASK_SOURCE
+
+        a, execution, subject, checks, review = self.report_fixture()
+        review.update(started_at='2026-11-04T13:55:00Z', ended_at=NOW)
+        review['cli_result']['modelUsage']['fixture-model'].update(
+            outputTokens=1, cacheReadInputTokens=0, cacheCreationInputTokens=0, costUSD=0.1)
+        card = NotionCard('11111111-2222-4333-9444-555555555555', 'offline-fixture')
+        blocks, patches = [], []
+        project = 'offline-project'
+        assert_equal = self.assertEqual
+
+        def notion(method, path, payload=None):
+            if path.startswith('/v1/pages/'):
+                return {'object': 'page', 'id': card.id, 'archived': False, 'in_trash': False,
+                        'parent': {'data_source_id': TASK_SOURCE}}
+            if method == 'PATCH':
+                self.assertTrue(transport.verified)
+                patches.append(path)
+                blocks.extend(payload['children'])
+                raise ValueError('simulated lost response after append')
+            return {'results': blocks, 'has_more': False}
+
+        class Transport:
+            posts = 0
+            verified = False
+            rows = []
+
+            def request(self, method, path, payload=None):
+                if path == PROJECTS:
+                    return {'data': [{'id': project}]}
+                if method == 'POST':
+                    self.posts += 1
+                    self.assert_payload(payload)
+                    return {}
+                if self.posts:
+                    self.verified = True
+                return {'data': self.rows, 'meta': {}}
+
+            def assert_payload(self, payload):
+                event = captured[0]
+                expected = manual.telemetry.prepare(project, event)
+                self.rows = expected['expected']
+                assert_equal(event['task_id'], card.id)
+                assert_equal(event['pr_number'], 99)
+                assert_equal(payload, expected['payload'])
+
+        transport = Transport()
+        card._request = notion
+        captured = []
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'reservations.sqlite3'
+            SQLiteReservations(path).initialize()
+
+            class CapturePublisher(Publisher):
+                def publish(self, project, event):
+                    captured.append(event)
+                    return super().publish(project, event)
+
+            def finalize():
+                db = SQLiteReservations(path)
+                return manual.finalize_with_trace(a, execution, subject, checks, review, project=project,
+                                                  publisher=CapturePublisher(transport, reservations=db),
+                                                  card=card, reservations=db)
+
+            with self.assertRaisesRegex(ValueError, 'lost response'):
+                finalize()
+            report = finalize()
+            self.assertEqual(transport.posts, 1)
+            self.assertEqual(len(patches), 1)
+            self.assertEqual(report['trace_url'], blocks[0]['paragraph']['rich_text'][0]['text']['link']['url'])
+            self.assertTrue(report['telemetry']['readback_verified'])
+            self.assertFalse(report['merge_eligible'])
 
     def test_trusted_execution_is_separate_from_the_reviewed_head(self):
         a, c, s, _ = fixture()

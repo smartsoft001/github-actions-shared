@@ -88,7 +88,10 @@ def nano(value):
 
 def prepare(project_id, event):
     require(isinstance(project_id, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,100}', project_id))
-    require(isinstance(event, dict) and set(event) == EVENT_KEYS)
+    require(isinstance(event, dict) and set(event) in (EVENT_KEYS, EVENT_KEYS | {'pr_number', 'task_id'}))
+    if 'task_id' in event:
+        require(integer(event['pr_number'], 1) and isinstance(event['task_id'], str)
+                and re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', event['task_id']))
     require(type(event['schema_version']) is int and event['schema_version'] == 1)
     require(isinstance(event['repository'], str) and len(event['repository']) <= 150 and
             re.fullmatch(r'[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+', event['repository']))
@@ -124,6 +127,8 @@ def prepare(project_id, event):
     common.update(schema='development-manual-telemetry-v1', binding_sha256=binding, model_usage_sha256=usage_hash,
                   billing_verified='false', cost_source='claude-cli-estimate',
                   subject_head_base_sha256=digest({'head_sha': event['subject_head_sha'], 'base_sha': event['subject_base_sha']}))
+    if 'task_id' in event:
+        common.update(task_id=event['task_id'], pr_number=str(event['pr_number']))
     spans, expected, generation_ids = [], [], {}
 
     def add_span(span_id, model=None):
@@ -174,7 +179,7 @@ def prepare(project_id, event):
 def metadata_matches(key, value, expected):
     if value == expected:
         return True
-    if key in {'repository_id', 'run_id', 'run_attempt', 'input_total_including_cache'} | OPTIONAL_USAGE:
+    if key in {'repository_id', 'run_id', 'run_attempt', 'pr_number', 'input_total_including_cache'} | OPTIONAL_USAGE:
         return type(value) is int and str(value) == expected
     if key == 'billing_verified':
         return value is False and expected == 'false'
