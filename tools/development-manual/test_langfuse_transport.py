@@ -132,6 +132,36 @@ class LangfuseTests(unittest.TestCase):
             self.assertNotIn('fake-secret', str(first)); self.assertNotIn('fake-secret', str(second))
             self.assertEqual(len([c for c in transport.calls if c[0] == 'POST']), 1)
 
+    def test_langfuse_normalized_observations_verify_without_post(self):
+        value = event()
+        value['cli_total_cost_usd_estimate'] = 0
+        value['model_usage']['fixture-model']['costUSD'] = 0
+        plan = lf.prepare(PROJECT, value)
+        observed = page(plan)
+        span, generation = observed['data']
+        for row in observed['data']:
+            row['metadata'].update(repository_id=123, run_id=456, run_attempt=1,
+                                   billing_verified=False, **{'scope.version': '1'})
+        span.update(model='', totalCost=None)
+        span['metadata']['cli_total_cost_usd_estimate'] = 0
+        generation['metadata']['input_total_including_cache'] = 80
+        transport = MemoryHTTP([{'data': [{'id': PROJECT}]}, observed])
+        result = lf.Publisher(transport).publish(PROJECT, value)
+        self.assertTrue(result['readback_verified'])
+        self.assertEqual([method for method, _, _ in transport.calls], ['GET', 'GET'])
+
+        for index, key, wrong in ((0, 'run_attempt', True), (0, 'billing_verified', True),
+                                  (0, 'cli_total_cost_usd_estimate', False),
+                                  (1, 'input_total_including_cache', 81)):
+            with self.subTest(key=key):
+                mismatch = copy.deepcopy(observed)
+                mismatch['data'][index]['metadata'][key] = wrong
+                with self.assertRaisesRegex(lf.TelemetryError, 'readback_mismatch'):
+                    lf.readback(plan, mismatch)
+        span['model'] = 'unexpected-model'
+        with self.assertRaisesRegex(lf.TelemetryError, 'readback_mismatch'):
+            lf.readback(plan, observed)
+
     def test_wrong_project_and_organization_inventory_never_write(self):
         for projects in ({'data': [{'id': 'other'}]}, {'data': [{'id': PROJECT}, {'id': 'other'}]}, {'data': []}):
             transport = MemoryHTTP([projects])

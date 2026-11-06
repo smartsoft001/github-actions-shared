@@ -167,6 +167,18 @@ def prepare(project_id, event):
             'payload': payload, 'expected': expected, 'query_path': OBSERVATIONS + '?' + query}
 
 
+def metadata_matches(key, value, expected):
+    if value == expected:
+        return True
+    if key in {'repository_id', 'run_id', 'run_attempt', 'input_total_including_cache'} | OPTIONAL_USAGE:
+        return type(value) is int and str(value) == expected
+    if key == 'billing_verified':
+        return value is False and expected == 'false'
+    if key == 'cli_total_cost_usd_estimate':
+        return number(value) and value == json.loads(expected)
+    return False
+
+
 def readback(plan, response):
     require(isinstance(response, dict) and isinstance(response.get('data'), list) and
             isinstance(response.get('meta'), dict), 'readback_invalid')
@@ -178,12 +190,15 @@ def readback(plan, response):
                 'readback_mismatch')
         seen.add(row['id']); target = expected[row['id']]
         require(set(target) <= set(row), 'readback_incomplete')
-        require(all(row.get(k) == target[k] for k in ('traceId', 'projectId', 'parentObservationId', 'type', 'name', 'sessionId', 'model')), 'readback_mismatch')
+        require(all(row.get(k) == target[k] for k in ('traceId', 'projectId', 'parentObservationId', 'type', 'name', 'sessionId')), 'readback_mismatch')
+        require(row['model'] == target['model'] or
+                (target['type'] == 'SPAN' and target['model'] is None and row['model'] == ''), 'readback_mismatch')
         require(type(row.get('isRootObservation')) is bool and row['isRootObservation'] == target['isRootObservation'], 'readback_mismatch')
         require(instant(row.get('startTime')) == instant(target['startTime']) and
                 instant(row.get('endTime')) == instant(target['endTime']), 'readback_mismatch')
         metadata = row.get('metadata')
-        require(isinstance(metadata, dict) and all(metadata.get(k) == v for k, v in target['metadata'].items()), 'readback_mismatch')
+        require(isinstance(metadata, dict) and
+                all(metadata_matches(k, metadata.get(k), v) for k, v in target['metadata'].items()), 'readback_mismatch')
         require(row.get('input') is None and row.get('output') is None, 'readback_mismatch')
         for key in ('usageDetails', 'costDetails'):
             value = row.get(key)
