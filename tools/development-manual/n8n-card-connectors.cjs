@@ -49,9 +49,10 @@ function createCardConnectors({ github, downloadZip, unzip, notion, postgres, re
       return { run, pull, card, report, trace };
     },
 
-    async readMarkers(cardId) {
+    async readMarkers(cardId, expectedLinks = []) {
       const endpoint = cardPath(cardId, 'blocks') + '/children?page_size=100';
       const markers = [], seen = new Set();
+      const expected = new Map(expectedLinks.map(({ key, url }) => [key, url]));
       let cursor;
       for (let page = 0; page < 20; page++) {
         const result = await notion('GET', endpoint + (cursor ? '&start_cursor=' + encodeURIComponent(cursor) : ''));
@@ -61,7 +62,19 @@ function createCardConnectors({ github, downloadZip, unzip, notion, postgres, re
           for (const item of block.paragraph?.rich_text ?? []) {
             const value = item.text?.content?.trim();
             const match = /^\[(development-ci:[1-9]\d*:1(?::trace:[a-f0-9]{32})?)\]$/.exec(value ?? '');
-            if (match) markers.push(match[1]);
+            if (match) {
+              const key = match[1];
+              if (markers.includes(key)) throw new Error('Duplicate Notion marker');
+              if (expected.has(key)) {
+                const urls = block.paragraph.rich_text
+                  .map((text) => text.text?.link?.url ?? text.href)
+                  .filter((url) => url != null);
+                if (urls.length !== 1 || urls[0] !== expected.get(key)) {
+                  throw new Error('Notion marker URL does not match the verified link');
+                }
+              }
+              markers.push(key);
+            }
           }
         }
         if (result.has_more === false) return markers;

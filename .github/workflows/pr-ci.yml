@@ -21,7 +21,7 @@ jobs:
             python3 -m unittest discover -s "tools/$suite" -p 'test_*.py'
           done
       - name: Verify n8n reconciliation offline
-        run: node --test tools/development-manual/n8n-card-update.test.cjs
+        run: node --test tools/development-manual/*.test.cjs
       - name: Generate synthetic CI report for the n8n sandbox
         env:
           PYTHONPATH: tools/development-manual

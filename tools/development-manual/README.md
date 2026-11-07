@@ -46,6 +46,10 @@ Local test fixtures are synthetic, including telemetry acknowledgments. They are
 
 ### Staged finalizer for package 7
 
+Historical design: this section describes the earlier combined
+finalizer. The separation below supersedes that runtime arrangement. Do not
+provision Langfuse/Notion credentials for the deterministic CI job.
+
 Use a single dedicated trusted finalizer on ai-os-server with SQLite on persistent local disk. The current ephemeral GitHub runner cannot provide this reservation guarantee. Provision the database once with `SQLiteReservations(path).initialize()` in an owner-only directory outside the checkout and artifact directories. Point every invocation at the same database. A missing database at runtime blocks new writes. Do not initialize a new database as a recovery step.
 
 The staged `finalize` entry point consumes the pinned subject, checks and review. Its protected configuration is `DEVELOPMENT_MANUAL_TRACE_TARGET` (approval digest as `approval_sha256`, approved `project_id` and existing AI OS `task_id`), `DEVELOPMENT_MANUAL_RESERVATIONS_DB`, the project-scoped `DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY` and `DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY`, and a scoped `DEVELOPMENT_MANUAL_NOTION_TOKEN`. Supply these only to the finalizer, outside PR-controlled inputs. Before activation, the reusable workflow needs new reviewed pins and dedicated runner routing, and the existing paid gate needs separate acceptance.
@@ -78,8 +82,12 @@ or trigger any merge. The n8n wiring and credential enrollment are staged
 integration work and require a separate live rollout.
 
 The staged `reconcileCard` entry point defines the connector boundary for n8n.
-Its `readEvidence` port must apply the artifact checks above. `readMarkers`
-returns complete marker keys without brackets. `reserveMarker` atomically
+Its `readEvidence` port must apply the artifact checks above. `readMarkers(cardId,
+expectedLinks)` returns complete marker keys without brackets. For each expected
+marker it must verify the exact URL in the same paragraph, and reject duplicate
+markers across the complete inventory. A marker alone is not proof of a correct
+link. These checks apply on initial reads, append readbacks and no-write retries.
+`reserveMarker` atomically
 inserts the pair (card ID, marker) and returns true only for the first insert.
 Use a persistent store with a unique key, and keep the reservation after an
 uncertain append. `appendChild` adds one block. A false verification result
@@ -95,6 +103,10 @@ that does not extract files to the runner filesystem. The optional trace port
 accepts receipts only from the trusted model process.
 
 Run the connector and reconciliation tests with
-`node --test tools/development-manual/n8n-card-update.test.cjs`. These adapters
+`node --test tools/development-manual/*.test.cjs`. The composed adapter scenarios
+cover concurrent callers, fresh connector instances, ambiguous append outcomes,
+invalid marker URLs, duplicate blocks and stale or mismatched evidence. These
+tests use simulated APIs and an in-memory atomic store; they do not prove live
+PostgreSQL or n8n concurrency. These adapters
 are prepared for workflow integration. They do not install the PostgreSQL
 schema or register a workflow on a live n8n instance.

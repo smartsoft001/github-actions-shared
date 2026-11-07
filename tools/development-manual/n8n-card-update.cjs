@@ -29,7 +29,8 @@ function planCardUpdate({ enrollment, run, pull, report, card, existingKeys, tra
     pull.base?.sha === report.base_sha && pull.base.ref === 'development' &&
     pull.head?.repo?.full_name === repo && pull.base?.repo?.full_name === repo);
   check(card.id === enrollment.cardId && card.parent?.data_source_id === '9789d202-52d5-4d3e-b75f-b4982a64e4fe' &&
-    card.archived === false && card.in_trash === false && Array.isArray(existingKeys));
+    card.archived === false && card.in_trash === false && Array.isArray(existingKeys) &&
+    new Set(existingKeys).size === existingKeys.length);
 
   const key = `development-ci:${run.id}:1`;
   const links = [{ key, label: 'Raport testów GitHub Actions', url: `https://github.com/${repo}/actions/runs/${run.id}` }];
@@ -58,7 +59,14 @@ if (typeof module !== 'undefined') module.exports = { planCardUpdate };
 // A reservation survives an ambiguous append, so a retry only reads that block.
 async function reconcileCard(enrollment, io) {
   const { run, pull, report, card, trace } = await io.readEvidence(enrollment);
-  const existingKeys = await io.readMarkers(enrollment.cardId);
+  // Validate the evidence before trusting any card marker. Every readback must
+  // bind that marker to its expected URL, including on a no-write retry.
+  const desired = planCardUpdate({ enrollment, run, pull, report, card, existingKeys: [], trace });
+  const expectedLinks = desired.children.map((child) => ({
+    key: child.paragraph.rich_text[1].text.content.trim().slice(1, -1),
+    url: child.paragraph.rich_text[0].text.link.url,
+  }));
+  const existingKeys = await io.readMarkers(enrollment.cardId, expectedLinks);
   const plan = planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace });
   const outcomes = [];
   for (const child of plan.children) {
@@ -70,7 +78,7 @@ async function reconcileCard(enrollment, io) {
         // The request may have committed. Read back before reporting its outcome.
       }
     }
-    const visible = await io.readMarkers(plan.cardId);
+    const visible = await io.readMarkers(plan.cardId, expectedLinks);
     outcomes.push({ marker, verified: visible.includes(marker.slice(1, -1)) });
   }
   return { cardId: plan.cardId, outcomes, verified: outcomes.every((entry) => entry.verified) };
