@@ -1,4 +1,4 @@
-name: Trusted manual Development report (staged)
+name: Development deterministic CI report (staged)
 
 on:
   workflow_call:
@@ -20,7 +20,6 @@ permissions:
   contents: read
   pull-requests: read
   actions: read
-  deployments: read
 
 env:
   DEVELOPMENT_MANUAL_ACCEPTANCE: ${{ vars.DEVELOPMENT_MANUAL_ACCEPTANCE }}
@@ -37,7 +36,7 @@ env:
   DM_HEAD_SHA: ${{ inputs.head_sha }}
   DM_BASE_SHA: ${{ inputs.base_sha }}
   DM_MANDATE_ID: ${{ inputs.mandate_id }}
-  DM_HELPER_SHA: fc09aec975d3133880b0ead51aa292ce080c3560
+  DM_HELPER_SHA: f76cbffbd791f367b01132bd9e6d2cf316102e1a
 
 jobs:
   prepare:
@@ -51,7 +50,7 @@ jobs:
     steps:
       - name: Validate trusted execution, one-run mandate and live subject
         id: prepare
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@f76cbffbd791f367b01132bd9e6d2cf316102e1a
         with:
           mode: prepare
         env:
@@ -63,7 +62,6 @@ jobs:
           path: |
             ${{ runner.temp }}/development-manual/subject.json
             ${{ runner.temp }}/development-manual/execution.json
-            ${{ runner.temp }}/development-manual/bundle.txt
           if-no-files-found: error
           retention-days: 7
 
@@ -88,7 +86,7 @@ jobs:
           name: development-manual-subject-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/development-manual
       - name: Run fixed checks in secret-free disposable containers
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@f76cbffbd791f367b01132bd9e6d2cf316102e1a
         with:
           mode: checks
         env:
@@ -104,100 +102,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  ai-review:
-    name: manual-ai-review
-    if: ${{ github.run_attempt == '1' }}
-    needs: [prepare, checks]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: development-manual-review
-    steps:
-      # There is intentionally no candidate checkout, secrets: inherit or repo config loading.
-      - name: Install supported Node runtime
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Produce report for this exact subject
+        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@f76cbffbd791f367b01132bd9e6d2cf316102e1a
         with:
-          node-version: 20.20.2
-      - name: Install verified CLI without model credentials
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/claude-package"
-          npm pack @anthropic-ai/claude-code@2.1.318 --pack-destination "$RUNNER_TEMP/claude-package" --ignore-scripts
-          python3 - <<'PY'
-          import base64, hashlib, os
-          from pathlib import Path
-          package = Path(os.environ['RUNNER_TEMP']) / 'claude-package/anthropic-ai-claude-code-2.1.318.tgz'
-          expected = 'OTJgLxcvWefv8IdTsq5n90Z2IxEhLwKqHUBhwZYE4odXzKA/Tb6p2Zb5Iy9Vq7JIVcNZzn9cPxW5sb42wLF95Q=='
-          assert base64.b64encode(hashlib.sha512(package.read_bytes()).digest()).decode() == expected, 'CLI integrity mismatch'
-          PY
-          npm install --global --ignore-scripts --no-audit --no-fund --prefix "$RUNNER_TEMP/claude-cli" "$RUNNER_TEMP/claude-package/anthropic-ai-claude-code-2.1.318.tgz"
-          echo "$RUNNER_TEMP/claude-cli/bin" >> "$GITHUB_PATH"
-      - name: Download bounded review input
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: development-manual-subject-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual
-      - name: Download deterministic evidence
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: development-manual-checks-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual
-      - name: Fresh review (blocked until separately accepted Langfuse integration)
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
-        with:
-          mode: review
+          mode: ci-report
         env:
           GH_TOKEN: ${{ github.token }}
-          DEVELOPMENT_MANUAL_CLAUDE_OAUTH_TOKEN: ${{ secrets.DEVELOPMENT_MANUAL_CLAUDE_OAUTH_TOKEN }}
-      - name: Retain structured review, including findings
-        if: ${{ always() }}
+      - name: Publish CI report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: development-manual-review-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual/review.json
-          if-no-files-found: error
-          retention-days: 7
-
-  manual-report:
-    name: manual-report-only
-    needs: [prepare, checks, ai-review]
-    if: ${{ success() && github.run_attempt == '1' && vars.DEVELOPMENT_MANUAL_FINALIZER_ENABLED == 'true' }}
-    runs-on:
-      group: development-finalizer
-      labels: ai-os-server-development-finalizer
-    environment: development-manual-finalizer
-    timeout-minutes: 10
-    steps:
-      - name: Download frozen subject
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: development-manual-subject-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual
-      - name: Download deterministic evidence
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: development-manual-checks-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual
-      - name: Download independent review
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: development-manual-review-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual
-      - name: Validate reports and reread live PR before success
-        uses: smartsoft001/github-actions-shared/.github/actions/development-manual@fc09aec975d3133880b0ead51aa292ce080c3560
-        with:
-          mode: finalize
-        env:
-          GH_TOKEN: ${{ github.token }}
-          DEVELOPMENT_MANUAL_TRACE_TARGET: ${{ vars.DEVELOPMENT_MANUAL_TRACE_TARGET }}
-          DEVELOPMENT_MANUAL_RESERVATIONS_DB: ${{ vars.DEVELOPMENT_MANUAL_RESERVATIONS_DB }}
-          DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY: ${{ secrets.DEVELOPMENT_MANUAL_LANGFUSE_PUBLIC_KEY }}
-          DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY: ${{ secrets.DEVELOPMENT_MANUAL_LANGFUSE_SECRET_KEY }}
-          DEVELOPMENT_MANUAL_NOTION_TOKEN: ${{ secrets.DEVELOPMENT_MANUAL_NOTION_TOKEN }}
-      - name: Upload validated report for human review
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: development-manual-receipt-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/development-manual/receipt.json
+          name: development-ci-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-manual/ci-report.json
           if-no-files-found: error
           retention-days: 30
