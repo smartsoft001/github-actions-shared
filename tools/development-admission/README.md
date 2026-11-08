@@ -68,3 +68,9 @@ run, n8n rollout, finalizer activation, v1 retag or Tele source push is implied.
 Both AI reusable workflows update their action pin to the tested source to keep
 main internally consistent. Existing Tele callers still use the unchanged v1;
 this PR is not a rollout of Tele or protection of its historical refs.
+
+## Prepared producer fence
+
+[Offline producer quarantine](PRODUCER-QUARANTINE.md) reuses this ownership
+registry before the legacy n8n dispatch/classifier. It is a separate inactive
+proposal, not a change to either active workflow or Tele's receiver pins.
