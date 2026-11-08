@@ -3,6 +3,8 @@ import importlib.util
 import io
 import json
 import os
+import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,6 +28,26 @@ def page(*, names=(), more=False, cursor=None, identity=NORMAL_ID, key='GAL-9999
 class AdmissionTests(unittest.TestCase):
     def run_guard(self, read, key='GAL-9999', repo='smartsoft001/galena-tele'):
         return guard.admit(key, repo, 'fixture-secret', ACTION / 'ownership.json', read=read)
+
+
+    def test_model_jobs_require_admission_and_pin_tested_action(self):
+        pins = set()
+        for filename, job in [('ai-plan.yml', 'plan'), ('ai-impl.yml', 'impl')]:
+            source = (ROOT / '.github/workflows' / filename).read_text()
+            sections = dict(re.findall(r'^  (\w+):\n(.*?)(?=^  \w+:\n|\Z)', source.split('jobs:\n', 1)[1], re.M | re.S))
+            self.assertIn('admission', sections)
+            self.assertIn('needs: admission', sections[job])
+            self.assertIn("if: ${{ needs.admission.outputs.allowed == 'true' }}", sections[job])
+            self.assertNotIn('claude', sections['admission'].lower())
+            pin = re.search(r'uses: smartsoft001/github-actions-shared/\.github/actions/development-admission@([a-f0-9]{40})\b', sections['admission']).group(1)
+            pins.add(pin)
+            for name in ('action.yml', 'guard.py', 'ownership.json'):
+                pinned = subprocess.check_output(['git', 'show', f'{pin}:.github/actions/development-admission/{name}'], cwd=ROOT)
+                self.assertEqual(pinned, (ACTION / name).read_bytes())
+            for name, body in sections.items():
+                if 'claude --print' in body or 'Install Claude' in body:
+                    self.assertEqual(name, job)
+        self.assertEqual(len(pins), 1)
 
     def test_ordinary_issue_is_admitted_only_after_complete_read(self):
         calls = []
