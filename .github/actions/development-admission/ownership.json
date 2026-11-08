@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "entries": [
+    {
+      "issue_id": "d0fc400f-492f-482d-958b-1b6bad24fa1e",
+      "issue_key": "GAL-1858",
+      "repository": "smartsoft001/galena-tele",
+      "reason": "retained-coordinator-history"
+    },
+    {
+      "issue_id": "9022fa28-08d3-4291-bd99-dbcc1345abcb",
+      "issue_key": "GAL-1881",
+      "repository": "smartsoft001/galena-tele",
+      "reason": "completed-local-stub-acceptance"
+    }
+  ]
+}

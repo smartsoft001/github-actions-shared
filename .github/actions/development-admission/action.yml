@@ -1,0 +1,22 @@
+name: Development receiver admission
+description: Read-only receiver fence before any model or implementation job
+inputs:
+  issue_id:
+    description: Linear issue identifier, never a command or source URL
+    required: true
+  linear_api_key:
+    description: Existing Linear read credential; never logged
+    required: true
+outputs:
+  allowed:
+    description: Only literal true permits the dependent model job
+    value: ${{ steps.guard.outputs.allowed }}
+runs:
+  using: composite
+  steps:
+    - id: guard
+      shell: bash
+      env:
+        ADMISSION_ISSUE_ID: ${{ inputs.issue_id }}
+        LINEAR_API_KEY: ${{ inputs.linear_api_key }}
+      run: python3 "$GITHUB_ACTION_PATH/guard.py"
