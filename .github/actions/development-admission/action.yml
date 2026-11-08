@@ -11,6 +11,9 @@ outputs:
   allowed:
     description: Only literal true permits the dependent model job
     value: ${{ steps.guard.outputs.allowed }}
+  reason:
+    description: Safe admission reason; denial alone is not a scenario acceptance
+    value: ${{ steps.guard.outputs.reason }}
 runs:
   using: composite
   steps:

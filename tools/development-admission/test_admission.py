@@ -113,9 +113,27 @@ class AdmissionTests(unittest.TestCase):
                  patch.object(guard, 'admit', side_effect=RuntimeError('secret response body')), \
                  contextlib.redirect_stdout(stdout):
                 guard.main()
-            self.assertEqual(output.read_text(), 'allowed=false\n')
+            self.assertEqual(output.read_text(), 'allowed=false\nreason=admission-unavailable\n')
             self.assertNotIn('secret', stdout.getvalue())
             self.assertFalse(json.loads(stdout.getvalue())['allowed'])
+
+    def test_main_exposes_exact_safe_reason_for_scenario_checks(self):
+        scenarios = [
+            ({'allowed': True, 'reason': 'linear-readback-verified', 'model_calls': 0}, None),
+            (None, guard.Denied('ai-skip-ci')),
+            (None, guard.Denied('missing-read-credential')),
+            (None, guard.Denied('coordinator-owned')),
+        ]
+        for result, error in scenarios:
+            with tempfile.TemporaryDirectory() as temp:
+                output = Path(temp) / 'output'
+                with patch.dict(os.environ, {'GITHUB_OUTPUT': str(output)}, clear=True), \
+                     patch.object(guard, 'admit', return_value=result, side_effect=error), \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    guard.main()
+                reason = str(error) if error else result['reason']
+                allowed = 'false' if error else 'true'
+                self.assertEqual(output.read_text(), f'allowed={allowed}\nreason={reason}\n')
 
     def test_http_read_is_fixed_origin_bounded_and_has_no_redirect_handler(self):
         class Response:

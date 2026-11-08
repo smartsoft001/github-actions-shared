@@ -107,6 +107,7 @@ def main():
         raise RuntimeError('GitHub output channel required')
     with open(output, 'a') as target:
         target.write('allowed=' + str(result['allowed']).lower() + '\n')
+        target.write('reason=' + result['reason'] + '\n')
     print(json.dumps(result))
 
 
