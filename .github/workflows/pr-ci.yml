@@ -15,9 +15,11 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - name: Run tester, manual transport and Tele calibration tests
+          # Pin-wiring test compares the action against its immutable source commit.
+          fetch-depth: 0
+      - name: Run offline development suites
         run: |
-          for suite in development-tester development-manual development-tele; do
+          for suite in development-tester development-manual development-tele development-admission; do
             python3 -m unittest discover -s "tools/$suite" -p 'test_*.py'
           done
       - name: Verify n8n reconciliation offline

@@ -118,7 +118,24 @@ on:
         required: true
 
 jobs:
+  admission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      allowed: ${{ steps.guard.outputs.allowed }}
+    steps:
+      - name: Check receiver admission without model
+        id: guard
+        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@d819760c42f9ecec49af6813c0c56dc3714d9059
+        with:
+          issue_id: ${{ inputs.issue_id }}
+          linear_api_key: ${{ secrets.LINEAR_API_KEY }}
+
   impl:
+    needs: admission
+    if: ${{ needs.admission.outputs.allowed == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
