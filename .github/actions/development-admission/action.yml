@@ -5,12 +5,15 @@ inputs:
     description: Linear issue identifier, never a command or source URL
     required: true
   linear_api_key:
-    description: Existing Linear read credential; never logged
-    required: true
+    description: Linear read credential; missing credentials deny ordinary issues
+    required: false
 outputs:
   allowed:
     description: Only literal true permits the dependent model job
     value: ${{ steps.guard.outputs.allowed }}
+  reason:
+    description: Safe admission reason; denial alone is not a scenario acceptance
+    value: ${{ steps.guard.outputs.reason }}
 runs:
   using: composite
   steps:

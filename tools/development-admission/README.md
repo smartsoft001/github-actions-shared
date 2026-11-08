@@ -37,3 +37,34 @@ model first. Do not claim production coverage from this PR or offline tests.
 This admission check is a preflight fence, not a reservation or exactly-once model
 executor. The durable coordinator reservation and verified planning adapter remain
 required before enabling a real planner.
+
+## Manual admission-only probe (prepared, not run)
+
+`development-admission-probe.yml` is manual-only on GitHub-hosted Ubuntu. It
+calls the pinned action four times, then requires exact allowed/reason pairs:
+retained ownership, a real AI Skip CI label, a complete ordinary-issue read,
+and a missing credential. A generic denial cannot falsely pass the label case.
+An ordinary-issue admission is only a checked result; no model job follows it.
+The extra `reason` output is a safe enum. Model workflow gates remain unchanged.
+
+The dedicated `development-admission-probe` environment must be separately
+approved/provisioned with a deployment branch policy allowing only main and
+`DEVELOPMENT_ADMISSION_LINEAR_READ_TOKEN`. Verify actual read-only permissions
+and access to the selected Tele issues. The probe does not use model, Notion,
+Langfuse, deployment or client-mirror credentials. Shared currently has neither
+repository secrets nor organization secrets made available (metadata read
+2026-11-08). Do not copy any existing server key without explicit authorization.
+No environment, secret or workflow dispatch is provisioned by this PR or CI.
+
+After reviewed merge, authorized credential setup and fresh independent issue
+reads, dispatch the probe on main with `skip_issue_id` and `ordinary_issue_id`.
+Do not use an owned key for either input. Inspect the run's actual referenced
+workflow/action SHAs and four exact results; retain the run ID/attempt/head.
+Do not re-enroll GAL-1881: this probe reads its static ownership entry only.
+Missing or incorrect credentials must fail the overall probe, not be reported
+as a successful skip-label scenario. Stop after this manual acceptance; no paid
+run, n8n rollout, finalizer activation, v1 retag or Tele source push is implied.
+
+Both AI reusable workflows update their action pin to the tested source to keep
+main internally consistent. Existing Tele callers still use the unchanged v1;
+this PR is not a rollout of Tele or protection of its historical refs.
