@@ -24,6 +24,8 @@ jobs:
           done
       - name: Verify n8n reconciliation offline
         run: node --test tools/development-manual/*.test.cjs
+      - name: Verify producer quarantine without model or API
+        run: node --test tools/development-admission/*.test.cjs
       - name: Generate synthetic CI report for the n8n sandbox
         env:
           PYTHONPATH: tools/development-manual

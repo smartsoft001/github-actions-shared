@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "apply": false,
+  "model_calls": 0,
+  "source_writes": 0,
+  "registry_sha256": "2956615df0ff3fb8c9778f2322ffa10b97a5c5c680f32c2e5750c1943d79dcd5",
+  "changes": [
+    {
+      "workflowId": "Kj0Bm4Q2XnRtKsn1",
+      "expectedActiveVersionId": "9470f519-6455-47bb-86f1-c23dfe8850bf",
+      "expectedDraftVersionId": "9470f519-6455-47bb-86f1-c23dfe8850bf",
+      "expectedFingerprint": "1ff8d611893482d1bbd4328b7e14c52ed024597e5890325decc471d608d92d19",
+      "operations": [
+        {
+          "type": "setNodeParameter",
+          "nodeName": "Linear: Fetch AI Dev Projects",
+          "path": "jsonBody",
+          "value": "={{ JSON.stringify({ query: \"{ projects(first: 20, filter: { labels: { name: { eq: \\\"AI Dev\\\" } } }) { nodes { id name externalLinks(first: 20) { nodes { url label } } issues(first: 50, filter: { state: { type: { in: [\\\"unstarted\\\", \\\"started\\\"] } }, parent: { null: true } }) { nodes { id identifier title url labels(first: 100) { nodes { id name } pageInfo { hasNextPage endCursor } } } } } } }\" }) }}"
+        },
+        {
+          "type": "setNodeParameter",
+          "nodeName": "Filter & Enrich",
+          "path": "jsCode",
+          "value": "const DEV_OWNERSHIP = [{\"issue_id\":\"d0fc400f-492f-482d-958b-1b6bad24fa1e\",\"issue_key\":\"GAL-1858\"},{\"issue_id\":\"9022fa28-08d3-4291-bd99-dbcc1345abcb\",\"issue_key\":\"GAL-1881\"}];\nconst DEV_UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;\nconst DEV_KEY = /^[A-Z][A-Z0-9]{1,15}-[1-9][0-9]{0,8}$/;\nfunction devAdmission(issue) {\n  if (DEV_OWNERSHIP.some(r => r.issue_id === issue?.id || r.issue_key === issue?.identifier)) return 'coordinator-owned';\n  if (!issue || typeof issue.id !== 'string' || !DEV_UUID.test(issue.id) || typeof issue.identifier !== 'string' || !DEV_KEY.test(issue.identifier)) throw Error('Development producer: invalid issue identity');\n  const labels = issue.labels;\n  if (!labels || !Array.isArray(labels.nodes) || labels.pageInfo?.hasNextPage !== false) throw Error('Development producer: incomplete label inventory');\n  const seen = new Set();\n  for (const label of labels.nodes) {\n    if (!label || typeof label.id !== 'string' || !DEV_UUID.test(label.id) || typeof label.name !== 'string' || seen.has(label.id)) throw Error('Development producer: invalid label inventory');\n    seen.add(label.id);\n  }\n  return labels.nodes.some(l => l.name === 'AI Skip CI') ? 'ai-skip-ci' : null;\n}\nconst resp = $input.first().json;\nif (!resp || !Array.isArray(resp.data?.projects?.nodes) || (resp.errors != null && (!Array.isArray(resp.errors) || resp.errors.length))) throw Error('Development producer: source read failed');\nconst projects = (resp && resp.data && resp.data.projects && resp.data.projects.nodes) || [];\nconst graphqlErrors = (resp && resp.errors) || null;\n\nconst out = [];\n\nfor (const project of projects) {\n  const links = (project.externalLinks && project.externalLinks.nodes) || [];\n  const codeLink = links.find(l => l.label === 'Code');\n  if (!codeLink || !codeLink.url) continue;\n\n  const match = codeLink.url.match(/github\\.com[\\/:]([^\\/]+)\\/([^\\/\\.\\?#]+)/);\n  if (!match) continue;\n  const repoOwner = match[1];\n  const repoName = match[2].replace(/\\.git$/, '');\n\n  const issues = (project.issues && project.issues.nodes) || [];\n  for (const issue of issues) {\n    if (devAdmission(issue)) continue;\n    const labelNames = ((issue.labels && issue.labels.nodes) || []).map(l => l.name);\n    if (labelNames.includes('AI Plan')) continue;\n    if (labelNames.includes('AI Skip CI')) continue;\n\n    out.push({\n      issueId: issue.id,\n      issueIdentifier: issue.identifier,\n      issueTitle: issue.title,\n      issueUrl: issue.url,\n      projectName: project.name,\n      repoOwner,\n      repoName,\n      repoUrl: codeLink.url,\n      labels: labelNames,\n      triggeredAt: new Date().toISOString()\n    });\n  }\n}\n\nif (out.length === 0) {\n  return [{ json: { candidates: [], graphqlErrors } }];\n}\nreturn [{ json: { candidates: out, graphqlErrors } }];"
+        }
+      ]
+    },
+    {
+      "workflowId": "YfyZaVDeZspB8VgK",
+      "expectedActiveVersionId": "24119461-d2ff-4233-9134-54acc8dd3834",
+      "expectedDraftVersionId": "24119461-d2ff-4233-9134-54acc8dd3834",
+      "expectedFingerprint": "bbd7e38c602b1f167fe76e99fa46f27e5ce12384a999aa2731f5c067a57d4489",
+      "operations": [
+        {
+          "type": "setNodeParameter",
+          "nodeName": "Linear: Fetch AI Plan Issues",
+          "path": "jsonBody",
+          "value": "={{ JSON.stringify({ query: \"{ projects(first: 20, filter: { labels: { name: { eq: \\\"AI Dev\\\" } } }) { nodes { id name externalLinks(first: 20) { nodes { url label } } issues(first: 50, filter: { state: { type: { in: [\\\"unstarted\\\"] } }, parent: { null: true }, labels: { name: { eq: \\\"AI Plan\\\" } } }) { nodes { id identifier title description url team { id } labels(first: 100) { nodes { id name } pageInfo { hasNextPage endCursor } } attachments(first: 20) { nodes { title url } } } } } } }\" }) }}"
+        },
+        {
+          "type": "setNodeParameter",
+          "nodeName": "Filter & Enrich",
+          "path": "jsCode",
+          "value": "const DEV_OWNERSHIP = [{\"issue_id\":\"d0fc400f-492f-482d-958b-1b6bad24fa1e\",\"issue_key\":\"GAL-1858\"},{\"issue_id\":\"9022fa28-08d3-4291-bd99-dbcc1345abcb\",\"issue_key\":\"GAL-1881\"}];\nconst DEV_UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;\nconst DEV_KEY = /^[A-Z][A-Z0-9]{1,15}-[1-9][0-9]{0,8}$/;\nfunction devAdmission(issue) {\n  if (DEV_OWNERSHIP.some(r => r.issue_id === issue?.id || r.issue_key === issue?.identifier)) return 'coordinator-owned';\n  if (!issue || typeof issue.id !== 'string' || !DEV_UUID.test(issue.id) || typeof issue.identifier !== 'string' || !DEV_KEY.test(issue.identifier)) throw Error('Development producer: invalid issue identity');\n  const labels = issue.labels;\n  if (!labels || !Array.isArray(labels.nodes) || labels.pageInfo?.hasNextPage !== false) throw Error('Development producer: incomplete label inventory');\n  const seen = new Set();\n  for (const label of labels.nodes) {\n    if (!label || typeof label.id !== 'string' || !DEV_UUID.test(label.id) || typeof label.name !== 'string' || seen.has(label.id)) throw Error('Development producer: invalid label inventory');\n    seen.add(label.id);\n  }\n  return labels.nodes.some(l => l.name === 'AI Skip CI') ? 'ai-skip-ci' : null;\n}\nconst resp = $input.first().json;\nif (!resp || !Array.isArray(resp.data?.projects?.nodes) || (resp.errors != null && (!Array.isArray(resp.errors) || resp.errors.length))) throw Error('Development producer: source read failed');\nconst projects = (resp && resp.data && resp.data.projects && resp.data.projects.nodes) || [];\nconst graphqlErrors = (resp && resp.errors) || null;\n\nconst out = [];\n\nfor (const project of projects) {\n  const links = (project.externalLinks && project.externalLinks.nodes) || [];\n  const codeLink = links.find(l => l.label === 'Code');\n  if (!codeLink || !codeLink.url) continue;\n\n  const match = codeLink.url.match(/github\\.com[\\/:]([^\\/]+)\\/([^\\/\\.\\?#]+)/);\n  if (!match) continue;\n  const repoOwner = match[1];\n  const repoName = match[2].replace(/\\.git$/, '');\n\n  const issues = (project.issues && project.issues.nodes) || [];\n  for (const issue of issues) {\n    if (devAdmission(issue)) continue;\n    const labelNames = ((issue.labels && issue.labels.nodes) || []).map(l => l.name);\n    if (!labelNames.includes('AI Plan')) continue;\n    if (labelNames.includes('AI Skip CI')) continue;\n\n    const attachments = (issue.attachments && issue.attachments.nodes) || [];\n    const planAttachment = attachments.find(a => /plan\\.md/i.test(a.title || '') || /plan\\.md/i.test(a.url || ''));\n\n    out.push({\n      issueId: issue.id,\n      issueIdentifier: issue.identifier,\n      issueTitle: issue.title,\n      issueDescription: issue.description || '',\n      issueUrl: issue.url,\n      teamId: (issue.team && issue.team.id) || null,\n      projectName: project.name,\n      repoOwner,\n      repoName,\n      repoUrl: codeLink.url,\n      planAttachmentUrl: planAttachment ? planAttachment.url : null,\n      hasPlan: !!planAttachment,\n      labels: labelNames,\n      branchName: issue.identifier.toLowerCase(),\n      triggeredAt: new Date().toISOString()\n    });\n  }\n}\n\nif (out.length === 0) {\n  return [{ json: { candidates: [], graphqlErrors } }];\n}\nreturn [{ json: { candidates: out, graphqlErrors } }];"
+        }
+      ]
+    }
+  ]
+}
