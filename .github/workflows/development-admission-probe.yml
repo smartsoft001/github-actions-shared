@@ -1,0 +1,60 @@
+name: Development admission probe without model
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_issue_id:
+        description: Independently checked issue with AI Skip CI, outside ownership registry
+        type: string
+        required: true
+      ordinary_issue_id:
+        description: Independently checked issue without AI Skip CI, outside ownership registry
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  admission_only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: development-admission-probe
+    steps:
+      - name: Retained coordinator ownership
+        id: owned
+        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@c88e5f9083775597f085f613854fb8a959fe7510
+        with:
+          issue_id: GAL-1881
+      - name: Read real skip label
+        id: skipped
+        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@c88e5f9083775597f085f613854fb8a959fe7510
+        with:
+          issue_id: ${{ inputs.skip_issue_id }}
+          linear_api_key: ${{ secrets.DEVELOPMENT_ADMISSION_LINEAR_READ_TOKEN }}
+      - name: Read complete ordinary issue
+        id: ordinary
+        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@c88e5f9083775597f085f613854fb8a959fe7510
+        with:
+          issue_id: ${{ inputs.ordinary_issue_id }}
+          linear_api_key: ${{ secrets.DEVELOPMENT_ADMISSION_LINEAR_READ_TOKEN }}
+      - name: Refuse missing credential
+        id: missing
+        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@c88e5f9083775597f085f613854fb8a959fe7510
+        with:
+          issue_id: ${{ inputs.ordinary_issue_id }}
+      - name: Require all exact results
+        env:
+          OWNED_ALLOWED: ${{ steps.owned.outputs.allowed }}
+          OWNED_REASON: ${{ steps.owned.outputs.reason }}
+          SKIPPED_ALLOWED: ${{ steps.skipped.outputs.allowed }}
+          SKIPPED_REASON: ${{ steps.skipped.outputs.reason }}
+          ORDINARY_ALLOWED: ${{ steps.ordinary.outputs.allowed }}
+          ORDINARY_REASON: ${{ steps.ordinary.outputs.reason }}
+          MISSING_ALLOWED: ${{ steps.missing.outputs.allowed }}
+          MISSING_REASON: ${{ steps.missing.outputs.reason }}
+        run: |
+          test "$OWNED_ALLOWED:$OWNED_REASON" = 'false:coordinator-owned'
+          test "$SKIPPED_ALLOWED:$SKIPPED_REASON" = 'false:ai-skip-ci'
+          test "$ORDINARY_ALLOWED:$ORDINARY_REASON" = 'true:linear-readback-verified'
+          test "$MISSING_ALLOWED:$MISSING_REASON" = 'false:missing-read-credential'

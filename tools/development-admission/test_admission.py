@@ -49,6 +49,22 @@ class AdmissionTests(unittest.TestCase):
                     self.assertEqual(name, job)
         self.assertEqual(len(pins), 1)
 
+    def test_probe_is_manual_only_with_exact_reasons_and_no_model_secrets(self):
+        source = (ROOT / '.github/workflows/development-admission-probe.yml').read_text()
+        self.assertIn('  workflow_dispatch:', source)
+        for trigger in ('push:', 'pull_request:', 'repository_dispatch:', 'schedule:', 'workflow_call:'):
+            self.assertNotIn(trigger, source)
+        for prohibited in ('CLAUDE', 'LANGFUSE', 'NOTION', 'claude --print', 'secrets: inherit', 'actions/checkout'):
+            self.assertNotIn(prohibited, source)
+        self.assertIn('environment: development-admission-probe', source)
+        self.assertIn('contents: read', source)
+        for result in ('false:coordinator-owned', 'false:ai-skip-ci', 'true:linear-readback-verified', 'false:missing-read-credential'):
+            self.assertIn(result, source)
+        source_pin = re.search(r'development-admission@([a-f0-9]{40})', source).group(1)
+        self.assertEqual(source.count('development-admission@'+source_pin), 4)
+        for name in ('action.yml','guard.py','ownership.json'):
+            self.assertEqual(subprocess.check_output(['git','show',f'{source_pin}:.github/actions/development-admission/{name}'],cwd=ROOT), (ACTION/name).read_bytes())
+
     def test_ordinary_issue_is_admitted_only_after_complete_read(self):
         calls = []
         def read(token, variables):
