@@ -22,3 +22,24 @@ jobs:
           for suite in development-tester development-manual development-tele development-admission; do
             python3 -m unittest discover -s "tools/$suite" -p 'test_*.py'
           done
+      - name: Verify n8n reconciliation offline
+        run: node --test tools/development-manual/*.test.cjs
+      - name: Generate synthetic CI report for the n8n sandbox
+        env:
+          PYTHONPATH: tools/development-manual
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from test_manual import ManualTests, manual
+          approval, execution, subject, checks, _ = ManualTests().report_fixture()
+          report = manual.make_ci_report(approval, execution, subject, checks)
+          Path('ci-report.json').write_text(json.dumps(report))
+          PY
+      - name: Publish sandbox fixture
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-ci-report-fixture
+          path: ci-report.json
+          if-no-files-found: error
+          retention-days: 1
