@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "observed_on": "2026-11-09",
+  "plan_sha256": "cbf3aca144f10f6bac25ce2c6c1fdf571147b55d09af6d4a1ef20a72d70ab86b",
+  "producer_versions": [
+    {
+      "id": "Kj0Bm4Q2XnRtKsn1",
+      "active_version": "9470f519-6455-47bb-86f1-c23dfe8850bf",
+      "draft_version": "9470f519-6455-47bb-86f1-c23dfe8850bf",
+      "configured_error_workflow": false
+    },
+    {
+      "id": "YfyZaVDeZspB8VgK",
+      "active_version": "24119461-d2ff-4233-9134-54acc8dd3834",
+      "draft_version": "24119461-d2ff-4233-9134-54acc8dd3834",
+      "configured_error_workflow": false
+    }
+  ],
+  "tele_workflows": [
+    {
+      "id": "271334799",
+      "path": ".github/workflows/ai-plan.yml",
+      "state": "active"
+    },
+    {
+      "id": "273082025",
+      "path": ".github/workflows/ai-impl.yml",
+      "state": "active"
+    }
+  ],
+  "branches": 46,
+  "tags": 278,
+  "refs_sha256": "272ffe32a1f33d2d6a8e0bf000e4cd66b7eb7bdf9d8c9071f1f25b933f735094",
+  "active_changes_performed": false,
+  "model_calls": 0,
+  "monitoring_readback_verified": false,
+  "offline_python_tests": 80,
+  "offline_node_tests": 52,
+  "new_rollout_tests": 21,
+  "offline_result": "pass",
+  "live_mutations": 0
+}

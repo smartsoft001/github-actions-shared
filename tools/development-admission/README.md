@@ -74,3 +74,9 @@ this PR is not a rollout of Tele or protection of its historical refs.
 [Offline producer quarantine](PRODUCER-QUARANTINE.md) reuses this ownership
 registry before the legacy n8n dispatch/classifier. It is a separate inactive
 proposal, not a change to either active workflow or Tele's receiver pins.
+
+## Prepared supervised rollout
+
+[Rollout and Tele isolation](ROLLOUT.md) adds a persistent intent journal,
+cooperating-process lease, drain gates, exact-version publication proposals and
+containment-only recovery. It has no API executor and performs no live change.
