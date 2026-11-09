@@ -20,7 +20,7 @@ MAX_BODY = 524288
 
 
 def iso(epoch):
-    return datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+    return datetime.fromtimestamp(epoch, timezone.utc).isoformat(timespec='milliseconds')
 
 
 def cases(now):
@@ -108,18 +108,20 @@ def perform_one(name, token_path, *, clock=time.time, opener=None):
         headers[HEADER]=token
     request=urllib.request.Request(URL+'?'+urllib.parse.urlencode(case['query']),headers=headers,method='GET')
     result={'case':name,'outcome':'unknown','http_attempts':1,'automatic_retry':False,
-            'source_access_verified':False,'production_acceptance':False}
+            'source_access_verified':False,'production_acceptance':False,'phase':'opening-response'}
     try:
         client=opener if opener is not None else urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect())
         try: response=client.open(request,timeout=10)
         except urllib.error.HTTPError as e: response=e
+        result.update(http_status=response.code,phase='reading-body')
         with response:
             body=response.read(MAX_BODY+1);status=response.code
         if len(body)>MAX_BODY: return result
-        result.update(http_status=status,outcome=assess(case,status,body,clock()))
-    except Exception:
+        result.update(http_status=status,phase='response-complete',outcome=assess(case,status,body,clock()))
+    except Exception as exc:
         # No URLs with credentials, raw remote messages, headers or bodies in logs.
-        pass
+        timeout=isinstance(exc,TimeoutError) or isinstance(exc,urllib.error.URLError) and isinstance(exc.reason,TimeoutError)
+        result['reason_code']='transport-timeout' if timeout else 'transport-error'
     return result
 
 

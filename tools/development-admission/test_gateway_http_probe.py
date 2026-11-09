@@ -42,6 +42,14 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual({(c['query']['workflowId'],c['query']['status']) for c in cases if c['expect']=='metadata'},
                          {(t,s) for t in p.TARGETS for s in p.FAILURES})
 
+    def test_fractional_wall_clock_queries_pass_actual_javascript_guard(self):
+        now=NOW+0.123456
+        queries=[c['query'] for c in p.cases(now) if c['expect']=='metadata']
+        guard=Path(p.__file__).with_name('metadata-gateway.cjs')
+        script="const m=require(process.argv[1]);let text='';process.stdin.on('data',x=>text+=x);process.stdin.on('end',()=>{const d=JSON.parse(text);for(const q of d.queries)m.validateRequest({query:q},d.now);console.log('accepted')});"
+        out=subprocess.run(['node','-e',script,str(guard)],input=json.dumps({'queries':queries,'now':now*1000}),capture_output=True,text=True,check=True)
+        self.assertEqual(out.stdout.strip(),'accepted')
+
     def test_transport_uses_fixed_test_url_get_timeout_and_does_not_echo_token(self):
         calls=[]
         class Client:
@@ -77,6 +85,16 @@ class ProbeTests(unittest.TestCase):
             def open(_,req,timeout):calls.append(req);raise TimeoutError('SECRET-REMOTE-ERROR')
         result=p.perform_one(VALID['name'],self.path,clock=lambda:NOW,opener=Client())
         self.assertEqual(len(calls),1);self.assertEqual(result['outcome'],'unknown');self.assertNotIn('SECRET',json.dumps(result))
+
+    def test_body_timeout_preserves_status_and_phase_without_raw_data(self):
+        class Stalled(Response):
+            def read(self,*args):raise TimeoutError('PRIVATE-REMOTE-DETAIL')
+        class Client:
+            def open(_,req,timeout):return Stalled(b'')
+        result=p.perform_one(VALID['name'],self.path,clock=lambda:NOW,opener=Client())
+        self.assertEqual(result['outcome'],'unknown');self.assertEqual(result['http_status'],200)
+        self.assertEqual(result['phase'],'reading-body');self.assertNotIn('PRIVATE',json.dumps(result))
+        self.assertEqual(result['reason_code'],'transport-timeout')
 
     def test_wrong_scope_partial_stale_or_extra_payload_refused(self):
         for changes in [{'complete':False},{'estimated':True},{'count':1},{'workflow_id':'ForeignWorkflow001'},
