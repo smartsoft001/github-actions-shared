@@ -61,3 +61,20 @@ Synthetic tests do not prove actual HTTP pagination flattening, API support of t
 installed n8n version, Header Auth rejection or live filtering. Those require a
 later explicitly authorized authenticated manual test. No test-only gateway was
 published. Independent monitor liveness and production acceptance remain open.
+
+## Dedicated Header Auth bound — 2026-11-09
+
+Emil confirmed saving the dedicated Header Auth. An exact name/type lookup found
+one credential `Development Producer Metadata Gateway`, ID `0tGUT0V8GTxSHYch`.
+It replaced the unrelated auto-assigned reference on `Authenticated metadata request`.
+Readback version `7c9ca060-6a52-4143-a570-00ce32f03235` confirmed only the credential
+reference changed: nodes otherwise identical, connections/settings unchanged,
+active=false, activeVersionId=null, trigger disabled and the pre-read guard retained.
+The earlier pending-credential steps above describe the preparation history; do
+not recreate the credential or regenerate the token. Builder imports still require
+explicit identity verification because auto-assignment must never be trusted.
+
+This is static binding verification. Credential values were not retrieved; token
+matching and authenticated HTTP acceptance/rejection have not been tested. The
+preparation guard remains intentionally locked even though binding is now complete.
+No gateway execution, publication, trigger enable or finalizer activation occurred.
