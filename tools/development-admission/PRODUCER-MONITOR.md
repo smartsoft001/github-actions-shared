@@ -74,9 +74,9 @@ No second sender execution occurred. Both temporary workflows were archived.
 After archiving, the connector refused execution access; it was not bypassed
 or represented as a fresh metadata read. Production sources were not executed.
 
-The Pushover API acceptance proves provider receipt only. Human phone delivery
-was requested separately and must be recorded only from Emil's actual reply.
-There is no human confirmation implied by API status1.
+The Pushover API acceptance proves provider receipt only. Emil separately
+confirmed actual iPhone receipt on 2026-11-09: “Tak — alert dotarł”. The
+Development receipt records that reply; no second message was sent.
 
 ## Acceptance boundary
 
@@ -101,3 +101,41 @@ unknown delivery, permanent event deduplication, 30-minute cooldown with control
 time, private SQLite state, six competing OS processes and the manual CLI.
 Run `python3 -m unittest discover -s tools/development-admission -p 'test_*.py'`.
 No model, message or API is called by tests.
+
+## Prepared single-cycle composition (offline only)
+
+`producer_monitor_cycle.py` composes injected metadata-page and delivery ports
+with the existing core and private SQLite state. It has no HTTP implementation,
+credentials, executable entry point, timer or installed service. Imports do not
+perform reads/sends. This is preparation for a future authorized runtime.
+
+The normalized reader port receives an exact reviewed target, failure status and
+opaque cursor. It returns `{data, next_cursor}`; this is our internal contract,
+**not a claim that raw n8n REST or MCP responses already match it**. A real adapter
+must prove coverage of error/crashed/unknown, map the actual pagination/status
+semantics and apply request timeouts. Do not infer completeness from one page.
+No client has yet been connected to either production target through this cycle.
+
+All pages and all three status sets are scanned without a moving watermark.
+Partial reads, cursor loops, duplicate IDs, wrong targets and limits become a
+generic unavailable event, never a healthy result. Metadata is projected to four
+fields. The snapshot is timestamped before collection; >30-second batches refuse
+reservation. Defaults cap each target at 20 pages and 2,000 rows; a bounded future
+query window needs separate design if real history exceeds them.
+
+The cycle opens existing state before any source read. Disabled production has
+no reader/sender calls, including with the manual-test flag. Delivery receives
+only the safe grant after durable reservation; an actual status1/request receipt
+acknowledges the same event. Lost responses, rejection, malformed receipt or an
+ack failure leave intent durable with no automatic retry. A future sender must
+also disable its HTTP/node retry; this function cannot constrain a malicious or
+internally retrying injected port. Returned receipts omit raw error bodies.
+
+11 offline composition tests cover read failure after a page, all-page collection,
+sensitive payload projection, limits, slow reads, separate targets, reservation
+before send, lost response, disabled production, missing state and duplicate
+restart. Core implementation and existing manual-test database are unchanged.
+This does not satisfy production monitoring acceptance. Runtime review must pin
+both core and cycle source and bind exact adapters/configuration before enabling.
+No heartbeat/independent alert exists for a stopped monitor or unavailable sender;
+that delivery-health check is still an activation prerequisite.
