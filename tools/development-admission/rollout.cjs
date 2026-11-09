@@ -1,10 +1,12 @@
 // Prepared orchestration only: no network, credential loading or API executor.
 const fs=require('node:fs'), path=require('node:path');
-const {randomUUID}=require('node:crypto');
+const {randomUUID,createHash}=require('node:crypto');
 const {compile,baselines,digest,snapshotFromMcp}=require('./producer-quarantine.cjs');
 const IDS=baselines.map(w=>w.id);
 const TELE=[{id:'271334799',path:'.github/workflows/ai-plan.yml'},{id:'273082025',path:'.github/workflows/ai-impl.yml'}];
 const REPO='smartsoft001/galena-tele';
+// Capture the implementation actually loaded for this process, not a moving branch.
+const IMPLEMENTATION_SHA=digest(['rollout.cjs','producer-quarantine.cjs'].map(name=>({name,sha256:createHash('sha256').update(fs.readFileSync(path.join(__dirname,name))).digest('hex')})));
 const HASH=/^[a-f0-9]{64}$/;
 const clone=x=>JSON.parse(JSON.stringify(x));
 function graph(w){return clone({name:w.name,nodes:w.nodes,connections:w.connections,settings:w.settings||{},nodeGroups:w.nodeGroups||[]});}
@@ -17,11 +19,11 @@ function buildPlan(workflows,tele){
   for(const op of change.operations)after.nodes.find(n=>n.name===op.nodeName).parameters[op.path]=op.value;
   return {id:w.id,baseline_version:w.activeVersionId,baseline_draft:w.versionId,before_sha256:digest(before),candidate_sha256:digest(after),operations:change.operations};
  });
- return {schema_version:1,prepared_only:true,registry_sha256:compiled.registry_sha256,producers,tele:{repository:REPO,refs_sha256:tele.refs_sha256,workflows:clone(TELE)},model_calls:0};
+ return {schema_version:1,prepared_only:true,implementation_sha256:IMPLEMENTATION_SHA,registry_sha256:compiled.registry_sha256,producers,tele:{repository:REPO,refs_sha256:tele.refs_sha256,workflows:clone(TELE)},model_calls:0};
 }
 function validatePlan(p){
  const compiled=compile(baselines);
- if(p.schema_version!==1||p.prepared_only!==true||p.registry_sha256!==compiled.registry_sha256||p.tele?.repository!==REPO||!HASH.test(p.tele.refs_sha256)||digest(p.tele.workflows)!==digest(TELE)||p.producers?.length!==2)throw Error('Invalid reviewed plan');
+ if(p.schema_version!==1||p.prepared_only!==true||p.implementation_sha256!==IMPLEMENTATION_SHA||p.registry_sha256!==compiled.registry_sha256||p.tele?.repository!==REPO||!HASH.test(p.tele.refs_sha256)||digest(p.tele.workflows)!==digest(TELE)||p.producers?.length!==2)throw Error('Invalid reviewed plan');
  for(const c of compiled.changes){const x=p.producers.find(x=>x.id===c.workflowId);if(!x||x.baseline_version!==c.expectedActiveVersionId||x.baseline_draft!==c.expectedDraftVersionId||!HASH.test(x.before_sha256)||!HASH.test(x.candidate_sha256)||digest(x.operations)!==digest(c.operations))throw Error('Unreviewed producer material');}
 }
 function privatePath(p,directory=false){
@@ -104,4 +106,4 @@ class Rollout{
 }
 // Containment only: never re-enable old receivers or publish old unsafe code.
 function containment(plan){validatePlan(plan);return {apply:false,actions:[...IDS.map(workflowId=>({tool:'unpublish_workflow',workflowId})),...TELE.map(w=>({method:'PUT',repository:REPO,path:`/repos/${REPO}/actions/workflows/${w.id}/disable`}))]};}
-module.exports={buildPlan,graph,validatePlan,Journal,Rollout,containment,digest,IDS,TELE,REPO};
+module.exports={buildPlan,graph,validatePlan,Journal,Rollout,containment,digest,IDS,TELE,REPO,IMPLEMENTATION_SHA};

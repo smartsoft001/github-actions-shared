@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "observed_on": "2026-11-09",
-  "plan_sha256": "cbf3aca144f10f6bac25ce2c6c1fdf571147b55d09af6d4a1ef20a72d70ab86b",
+  "plan_sha256": "1c34cbd32b9191a21637c93f652b3a3dcc131e88c60ae06237335d69581a205b",
   "producer_versions": [
     {
       "id": "Kj0Bm4Q2XnRtKsn1",
@@ -35,8 +35,9 @@
   "model_calls": 0,
   "monitoring_readback_verified": false,
   "offline_python_tests": 80,
-  "offline_node_tests": 53,
-  "new_rollout_tests": 22,
+  "offline_node_tests": 54,
+  "new_rollout_tests": 23,
   "offline_result": "pass",
-  "live_mutations": 0
+  "live_mutations": 0,
+  "implementation_sha256": "843c361105e743a2eb2f271d72ba9bec7c57bbc13daf1d22a21b1ceed4d85dc3"
 }

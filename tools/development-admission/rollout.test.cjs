@@ -44,3 +44,5 @@ test('publication response without exact active-version readback never advances 
 test('unexpected activation after a publish intent is drift, not success or automatic rollback',()=>{const f=setup();try{reach(f,'publish:'+IDS[0]);const w=f.obs.producers[0];w.active=true;w.active_version='foreign-active';w.active_sha256=f.plan.producers[0].candidate_sha256;assert.throws(()=>f.runner.next(f.obs,f.grant,NOW),/Unexpected published version/);}finally{f.cleanup();}});
 
 test('invalid coordinator clock cannot reserve or confirm a step',()=>{for(const now of [NaN,Infinity,'1000']){const f=setup();try{assert.throws(()=>f.runner.next(f.obs,f.grant,now),/Stale observation/);assert.deepEqual(f.runner.journal.read().entries,{});}finally{f.cleanup();}}});
+
+test('a different planner implementation cannot consume the same reviewed material',()=>{const {validatePlan}=require('./rollout.cjs');const p=fixtures().plan;p.implementation_sha256='0'.repeat(64);assert.throws(()=>validatePlan(p),/Invalid reviewed plan/);});

@@ -8,8 +8,8 @@ preparation and offline tests, not changes to active n8n, a model or finalizer.
 
 `rollout-preview.json` binds the shared ownership registry, both producer
 versions, complete MCP-visible graph hashes before/after the four reviewed
-parameter changes and a digest of all current Tele branch/tag tips. The manifest
-contains operations and hashes, never full source configurations or credentials.
+parameter changes and a digest of all current Tele branch/tag tips. The manifest also binds the loaded rollout/compiler implementation hashes.
+It contains operations and hashes, never full source configurations or credentials.
 Private temporary full configurations were deleted after deriving the manifest.
 `rollout-readiness.json` records the observed versions and limitations.
 
