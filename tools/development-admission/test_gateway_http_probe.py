@@ -42,6 +42,14 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual({(c['query']['workflowId'],c['query']['status']) for c in cases if c['expect']=='metadata'},
                          {(t,s) for t in p.TARGETS for s in p.FAILURES})
 
+    def test_fractional_wall_clock_queries_pass_actual_javascript_guard(self):
+        now=NOW+0.123456
+        queries=[c['query'] for c in p.cases(now) if c['expect']=='metadata']
+        guard=Path(p.__file__).with_name('metadata-gateway.cjs')
+        script="const m=require(process.argv[1]);let text='';process.stdin.on('data',x=>text+=x);process.stdin.on('end',()=>{const d=JSON.parse(text);for(const q of d.queries)m.validateRequest({query:q},d.now);console.log('accepted')});"
+        out=subprocess.run(['node','-e',script,str(guard)],input=json.dumps({'queries':queries,'now':now*1000}),capture_output=True,text=True,check=True)
+        self.assertEqual(out.stdout.strip(),'accepted')
+
     def test_transport_uses_fixed_test_url_get_timeout_and_does_not_echo_token(self):
         calls=[]
         class Client:

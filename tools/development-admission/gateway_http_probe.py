@@ -20,7 +20,7 @@ MAX_BODY = 524288
 
 
 def iso(epoch):
-    return datetime.fromtimestamp(epoch, timezone.utc).isoformat()
+    return datetime.fromtimestamp(epoch, timezone.utc).isoformat(timespec='milliseconds')
 
 
 def cases(now):
