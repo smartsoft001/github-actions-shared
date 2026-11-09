@@ -80,3 +80,9 @@ proposal, not a change to either active workflow or Tele's receiver pins.
 [Rollout and Tele isolation](ROLLOUT.md) adds a persistent intent journal,
 cooperating-process lease, drain gates, exact-version publication proposals and
 containment-only recovery. It has no API executor and performs no live change.
+
+## Prepared error monitor
+
+[Producer monitor](PRODUCER-MONITOR.md) evaluates metadata only and reserves
+alerts in private SQLite with event deduplication/cooldown. The isolated manual
+phone test does not activate production monitoring or satisfy rollout acceptance.
