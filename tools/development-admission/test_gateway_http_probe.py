@@ -86,6 +86,16 @@ class ProbeTests(unittest.TestCase):
         result=p.perform_one(VALID['name'],self.path,clock=lambda:NOW,opener=Client())
         self.assertEqual(len(calls),1);self.assertEqual(result['outcome'],'unknown');self.assertNotIn('SECRET',json.dumps(result))
 
+    def test_body_timeout_preserves_status_and_phase_without_raw_data(self):
+        class Stalled(Response):
+            def read(self,*args):raise TimeoutError('PRIVATE-REMOTE-DETAIL')
+        class Client:
+            def open(_,req,timeout):return Stalled(b'')
+        result=p.perform_one(VALID['name'],self.path,clock=lambda:NOW,opener=Client())
+        self.assertEqual(result['outcome'],'unknown');self.assertEqual(result['http_status'],200)
+        self.assertEqual(result['phase'],'reading-body');self.assertNotIn('PRIVATE',json.dumps(result))
+        self.assertEqual(result['reason_code'],'transport-timeout')
+
     def test_wrong_scope_partial_stale_or_extra_payload_refused(self):
         for changes in [{'complete':False},{'estimated':True},{'count':1},{'workflow_id':'ForeignWorkflow001'},
                         {'observed_at':NOW-31},{'data':[],'prompt':'PRIVATE'},{'count':True},{'started_after':'2027-01-15T07:00:00'}]:
