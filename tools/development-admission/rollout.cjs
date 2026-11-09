@@ -39,7 +39,7 @@ class Journal{
 }
 function steps(){return [...IDS.map(id=>({id:'pause:'+id,kind:'pause',target:id})),...TELE.map(w=>({id:'disable:'+w.id,kind:'disable',target:w.id})),...IDS.map(id=>({id:'stage:'+id,kind:'stage',target:id})),...IDS.map(id=>({id:'publish:'+id,kind:'publish',target:id}))];}
 function inspect(plan,o,state,now){
- if(!Number.isFinite(o.observed_at)||now-o.observed_at<0||now-o.observed_at>30)throw Error('Stale observation');
+ if(!Number.isFinite(now)||!Number.isFinite(o.observed_at)||now-o.observed_at<0||now-o.observed_at>30)throw Error('Stale observation');
  if(o.tele?.repository!==REPO||o.tele.refs_sha256!==plan.tele.refs_sha256||o.tele.workflows?.length!==2||o.producers?.length!==2)throw Error('Source inventory drift');
  const all=steps();if(Object.keys(state.entries).some(k=>!all.some(s=>s.id===k)))throw Error('Unknown journal step');
  let gap=false;for(const step of all){const e=state.entries[step.id];if(!e){gap=true;continue;}if(gap)throw Error('Nonsequential journal');if(e.status!=='confirmed')gap=true;}

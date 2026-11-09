@@ -35,8 +35,8 @@
   "model_calls": 0,
   "monitoring_readback_verified": false,
   "offline_python_tests": 80,
-  "offline_node_tests": 52,
-  "new_rollout_tests": 21,
+  "offline_node_tests": 53,
+  "new_rollout_tests": 22,
   "offline_result": "pass",
   "live_mutations": 0
 }
