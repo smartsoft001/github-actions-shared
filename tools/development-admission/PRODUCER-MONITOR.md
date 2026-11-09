@@ -139,3 +139,37 @@ This does not satisfy production monitoring acceptance. Runtime review must pin
 both core and cycle source and bind exact adapters/configuration before enabling.
 No heartbeat/independent alert exists for a stopped monitor or unavailable sender;
 that delivery-health check is still an activation prerequisite.
+
+## Authorized MCP metadata mapping — prepared, no unattended session
+
+`producer_monitor_mcp.MetadataReader` maps the actual
+`search_workflow_executions` structured response (`data`, `count`, `estimated`)
+to the cycle page port. Calls use one reviewed workflow ID, one failure status,
+limit <=200, a fixed startedAfter/startedBefore window and lastId from the last
+execution of the previous page. Strict after includes one extra second at the
+lower boundary; the existing core applies the final profile baseline.
+
+Count must be exact, nonnegative and unchanged throughout a status stream.
+Estimated/unavailable counts, duplicate IDs, empty partial pages, wrong scope,
+changed totals, bad timestamps and raw errors fail closed. It never retrieves
+execution payloads. The caller supplies an authorized MCP search callback;
+there is no built-in MCP session, HTTP client, credential export or scheduler.
+It is therefore not an unattended production transport yet.
+
+A real supervised read on 2026-11-09 covered both producers and all three failure
+statuses from 00:00:00Z through 08:15:33Z. Six authenticated MCP responses each had
+count0/estimatedfalse; mapping and inspection completed with no incidents in
+that window. No reservation, sender, workflow execution or model was called.
+The first local harness comparison refused equivalent Z/+00:00 query strings;
+after canonical timestamp comparison the same fresh metadata passed. This was
+a harness correction, not a repeated producer run or a bypassed freshness check.
+Live multi-page count semantics have NOT been accepted: all real streams were
+empty. Synthetic multi-page tests do not close that gap. A changing API history
+can cause count drift and an unavailable result; there is no source snapshot CAS.
+
+9 additional offline tests cover exact empty responses, lastId paging, safe
+projection, invalid/estimated counts, count drift, repeated rows, foreign data,
+query bounds, bad cursor, raw exception redaction and disabled/unavailable reads.
+Before activation, still resolve real multi-page coverage, unattended narrow
+source access, exact runtime pins, sender timeout/no-retry and independent
+liveness/delivery health. The accepted iPhone test is not production coverage.
