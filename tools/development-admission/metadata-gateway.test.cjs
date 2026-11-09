@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {validateRequest,normalizePages}=require('./metadata-gateway.cjs');
+const {validateRequest,normalizePages,requestEnvelope,responseEnvelope}=require('./metadata-gateway.cjs');
 const {build,definitions}=require('./build-metadata-gateway.cjs');
 const NOW=Date.parse('2026-11-09T10:00:00Z');
 const request=()=>({query:{workflowId:'Kj0Bm4Q2XnRtKsn1',status:'error',startedAfter:'2026-11-09T09:00:00Z',startedBefore:'2026-11-09T10:00:00Z'},headers:{authorization:'PRIVATE-HEADER'}});
@@ -61,5 +61,34 @@ test('compiled graph has authenticated GET, fixed host and native credential ref
   assert.equal(read.retryOnFail,false);assert.equal(read.parameters.options.redirect.redirect.followRedirects,false);
   assert.equal(read.parameters.options.pagination.pagination.maxRequests,20);assert.equal(read.parameters.options.timeout,10000);
   assert.equal(read.credentials.n8nApi.name,'n8n internal');
-  assert.ok(!build().includes('scheduleTrigger'));assert.ok(build().includes('newCredential("Development Producer Metadata Gateway")'));
+  assert.ok(!build().includes('scheduleTrigger'));assert.equal(entry.credentials.httpHeaderAuth.id,'0tGUT0V8GTxSHYch');
+  assert.ok(build().includes('.onTrue(read.to(project.to(reply))).onFalse(reply)'));
+  assert.equal(read.onError,'continueRegularOutput');
+});
+test('all input refusals return fixed400 without echoing input or auth',()=>{
+  for(const changes of [{workflowId:'ForeignWorkflow1'},{status:'success'},{includeData:'true'},{startedAfter:'2026-11-08T00:00:00Z'},{startedBefore:'2026-11-09T09:59:00Z'}]) {
+    const r=request();Object.assign(r.query,changes);
+    assert.deepEqual(requestEnvelope(r,NOW),{allowed:false,reply_code:400,reply_body:{schema_version:1,error:'invalid_metadata_request'}});
+  }
+});
+test('valid envelope carries only safe scope into true branch',()=>{
+  const out=requestEnvelope(request(),NOW);assert.equal(out.allowed,true);assert.equal(out.workflowId,query().workflowId);
+  assert.ok(!JSON.stringify(out).includes('PRIVATE'));assert.equal(out.reply_code,undefined);
+});
+test('source errors and incomplete pagination return fixed503',()=>{
+  for(const pages of [[{error:{message:'PRIVATE-REMOTE-ERROR'}}],[{data:[row()],nextCursor:'more'}],[]]) {
+    assert.deepEqual(responseEnvelope(pages,query(),NOW),{reply_code:503,reply_body:{schema_version:1,error:'metadata_unavailable'}});
+  }
+});
+test('complete source reply remains200 and retains strict safe schema',()=>{
+  const out=responseEnvelope([{data:[row()],nextCursor:null}],query(),NOW);
+  assert.equal(out.reply_code,200);assert.equal(out.reply_body.count,1);assert.equal(out.reply_body.complete,true);
+  assert.ok(!JSON.stringify(out).includes('PRIVATE'));
+});
+test('builder routes refusal directly to dynamic JSON/status response, not source',()=>{
+  const route=definitions.find(x=>x[0]==='route'),reply=definitions.find(x=>x[0]==='reply')[4];
+  assert.equal(route[1],'ifElse');assert.equal(route[4].parameters.looseTypeValidation,false);
+  assert.equal(reply.parameters.responseBody,'EXPR:{{ $json.reply_body }}');
+  assert.equal(reply.parameters.options.responseCode,'EXPR:{{ $json.reply_code }}');
+  assert.ok(build().includes('responseEnvelope($input.all()'));assert.ok(!build().includes('module.exports='));
 });

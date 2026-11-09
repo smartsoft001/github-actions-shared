@@ -1,5 +1,9 @@
 # Unpublished producer metadata gateway
 
+Current code proposal adds explicit HTTP400/503 responses in a six-node graph.
+It has NOT replaced the restored five-node draft. See the final section for the
+complete real test result and this offline-only fix.
+
 Prepared on Emil's explicit approval for a new authenticated draft and one new
 secret on ai-os-server. No publication, schedule, model, active producer change
 or finalizer activation is authorized by this preparation.
@@ -78,3 +82,39 @@ This is static binding verification. Credential values were not retrieved; token
 matching and authenticated HTTP acceptance/rejection have not been tested. The
 preparation guard remains intentionally locked even though binding is now complete.
 No gateway execution, publication, trigger enable or finalizer activation occurred.
+
+## Complete native HTTP retry and explicit status fix — 2026-11-09
+
+After authorized merge/sync Shared #14/Development #22, all13cases were repeated
+through native draft listeners with the10s client limit unchanged. Six valid
+metadata reads across both targets and three statuses returned complete200JSON in
+0.6818–3.0567s. Missing/wrong auth returned403. Five invalid authenticated requests
+stopped in the guard before the source, but the actual listener returned empty200,
+so the overall HTTP acceptance still fails. No protected metadata was returned by
+these invalid cases; transient UI node paths and empty bodies are recorded.
+
+The previous timeout was not reproduced. DNS/TCP/health were fast, and tracing
+shows complete fixed-length JSON without body-read stalls in this sample. Seven
+pending execution metadata records alone do not prove that a queue caused the
+old delay. Do not claim the historical11s cause is resolved or increase timeouts.
+
+The proposed fix replaces implicit throw-based responses with explicit envelopes:
+invalid input→400fixed JSON through the false IF branch, with no source node;
+valid input→source/projection→200safe metadata, or503fixed JSON on source/shape
+failure. The HTTP node continues errors only into the strict projection envelope;
+no raw remote error is returned. Reply code/body are always constructed by the
+trusted envelope helpers. The builder pins the already verified dedicated Header
+Auth reference instead of allowing another automatic credential selection.
+
+Five additional Node tests cover400privacy/scope, safe valid envelopes,503source
+failures,200projection and false-branch wiring. Full offline suite132Python+68Node
+PASS; all6node configurations and SDK graph validate. This changed graph is only
+in the PR: no draft update, live test or publication of the status fix occurred.
+It still emits a disabled trigger/preparation throw. A new exact reviewed draft
+and native test window are required to accept the fix over HTTP.
+
+Final live state: Ezm9n6EggooXhbam version560813af-7ed4-409d-b5f1-03c28d06095f,
+unpublished, triggerdisabled, exact preparation guard and full original baseline
+restored. One cleanup GET404 confirms the test listener is closed.13matrix+1cleanup
+requests, no autoretry/model/schedule/finalizer. Production monitoring/liveness
+remain unaccepted; Tele acceptance stays with its next planned release.
