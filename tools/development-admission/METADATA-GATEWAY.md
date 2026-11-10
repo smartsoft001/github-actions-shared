@@ -1,8 +1,9 @@
 # Unpublished producer metadata gateway
 
-Current code proposal adds explicit HTTP400/503 responses in a six-node graph.
-It has NOT replaced the restored five-node draft. See the final section for the
-complete real test result and this offline-only fix.
+Current gateway uses the merged six-node graph with explicit HTTP400/503 responses.
+Its 13-case native HTTP matrix passed on 2026-11-10 and the draft was restored
+to disabled/guarded/unpublished. The dated sections below preserve earlier history.
+See the final section for additional isolated runtime coverage and its limits.
 
 Prepared on Emil's explicit approval for a new authenticated draft and one new
 secret on ai-os-server. No publication, schedule, model, active producer change
@@ -118,3 +119,82 @@ unpublished, triggerdisabled, exact preparation guard and full original baseline
 restored. One cleanup GET404 confirms the test listener is closed.13matrix+1cleanup
 requests, no autoretry/model/schedule/finalizer. Production monitoring/liveness
 remain unaccepted; Tele acceptance stays with its next planned release.
+
+## Native fixture integration — 2026-11-10
+
+`gateway-native-fixtures.cjs` runs the actual n8n2.46.6 HTTP Request4.5 node and
+the builder's unchanged guard/projection code in a fresh local SQLite instance.
+It imports only local manual workflows. It removes credential references,
+replaces the read URL with a synthetic loopback source, and never connects to
+the live gateway, Notion, Langfuse, models or project repositories.
+
+The runner requires macOS, Node24 and a pre-existing n8n2.46.6 installation;
+it does not install packages. Run with that Node executable:
+
+```sh
+node tools/development-admission/gateway-native-fixtures.cjs /absolute/path/to/n8n-installation
+```
+
+An OS network sandbox permits only loopback, with a separate EPERM check for
+non-loopback traffic. The child receives a small explicit environment and a
+fresh HOME/N8N_USER_FOLDER. Synthetic source logs and SQLite are deleted on exit;
+only safe aggregate results reach stdout. The runner does not start an editor,
+publish a webhook, import service credentials or change an existing instance.
+
+Six actual node-execution cases passed on Node24.16.0:
+
+| Case | Source requests | Envelope |
+|---|---:|---|
+| Nonempty page | 1 | 200, one safe row |
+| Two pages (100+1 rows) | 2 | 200, 101 unique safe rows |
+| Source HTTP503 | 1 | fixed503, no source error body |
+| Source HTTP503 on page2 | 2 | fixed503, no partial success |
+| No terminal cursor at20-page cap | 20 | fixed503 |
+| Duplicate row across pages | 2 | fixed503 |
+
+The source checks exact query scope, includeData=false, limit100 and the cursor
+sequence; canary payload/error fields must not survive projection. The original
+builder retains its production host, credentials, pagination20 and preparation
+locks. Two default-CI boundary tests prevent accidental fixture credential/host
+inheritance and drift from the reviewed pagination/projection/error settings.
+
+This proves native node pagination/error handling against synthetic HTTP, not
+nonempty or multipage behavior of the deployed n8n REST API. The isolated chain
+asserts the reply envelope; it does not run Respond to Webhook.
+
+A separate single native gateway HTTP attempt with a temporarily invalid source
+limit timed out within10s. Delayed UI later displayed all six nodes completed,
+but the client did not verify503; no live source-failure HTTP acceptance is claimed.
+The full locked baseline was restored (versioneaacd238-e809-4948-9332-fa31eaef2f49),
+cleanup404 and UI Deactivated confirmed closure. No automatic retry, publication,
+model, schedule or finalizer activation. This first probe was inconclusive; the
+separate controlled tests below subsequently closed basic native HTTP coverage.
+
+## Real REST pagination and native503 accepted — 2026-11-10
+
+An unpublished, credential-free manual fixture produced exactly two synthetic
+error executions (462873/462874, workflowO8I2nNbNaONUQYGx). During one bounded
+test window the gateway's target scope was replaced with only that fixture and
+the source page size set to1. A403 readiness request preceded the authenticated
+read. The real gateway returned200 in2.1896s with exactly those two rows and
+only the four safe fields; native canvas showed two source items/pages.
+
+A negative source limit did not produce a verified source error (HTTP200);
+it is not a reliable fault-injection method. That window was closed and its
+baseline restored before a separate deterministic test changed only the source
+URL to a fixed nonexistent API path on the same host. Native editor readback
+confirmed the changed URL. After403 readiness, the real gateway returned503 in
+1.2598s with exactly `{schema_version:1,error:'metadata_unavailable'}`. No raw
+source error, workflow payload or credentials were returned. Every case was a
+single deliberate attempt, never an automatic retry or a timeout increase.
+
+Final versioncb4e3145-1f81-4ee5-ac0e-52371716be5c matches the original six-node
+baseline exactly: original two producers, source URL, page size100, credential
+references and settings. Disabled trigger/preparation throw, activefalse/null,
+cleanup404 and native UI Deactivated verified. No own pending executions remain;
+the isolated fixture is archived. Production producer versions are unchanged.
+
+These are controlled manual acceptance checks, including deployed REST cursor
+behavior with synthetic records. They do not accept autonomous monitoring,
+high-volume production history, independent liveness, delivery health or any
+future activation. No publication/model/schedule/finalizer; Tele at next release.
