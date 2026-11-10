@@ -1,0 +1,56 @@
+{
+  "id": "ObserverPreparedIngress",
+  "name": "[PREPARED ONLY] AI OS Observer ingress",
+  "active": false,
+  "nodes": [
+    {
+      "id": "manual",
+      "name": "Manual prepared probe",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {},
+      "disabled": true
+    },
+    {
+      "id": "observer",
+      "name": "Prepared observer",
+      "type": "CUSTOM.developmentObserver",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "ingress",
+        "preparedOnly": true,
+        "approvedMongoCredentialId": "",
+        "recipient": "",
+        "verifyOnly": true
+      },
+      "retryOnFail": false
+    }
+  ],
+  "connections": {
+    "Manual prepared probe": {
+      "main": [
+        [
+          {
+            "node": "Prepared observer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 30,
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  }
+}

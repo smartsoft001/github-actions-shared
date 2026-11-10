@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "prepared-mongodb-offline",
+  "status": "prepared-scoped-node-uninstalled",
   "enabled": false,
   "primary_host": "ai-os-server",
   "observer_runtime_candidate": "n8n outside the primary host failure domain",
@@ -34,7 +34,7 @@
       "scope_verified": false,
       "bound": false
     },
-    "provisioned": false,
+    "provisioned": true,
     "runtime_can_change_registry_activation_flags": false,
     "reservations": "single-document revision CAS; majority+journaled write; no retry or upsert",
     "audit": "append-only notices and receipts; no TTL",
@@ -57,7 +57,7 @@
     "initialization": {
       "file": "mongodb-observer-initialize.cjs",
       "prepared": true,
-      "live_applied": false,
+      "live_applied": true,
       "authorization_required": true,
       "existing_observer_collection_policy": "refuse-even-empty",
       "partial_failure": "preserve-disabled-state-and-require-manual-reconciliation",
@@ -68,10 +68,16 @@
       "binding_installed": false,
       "administrative_route_verified": true,
       "administrative_route": "MongoDB Compass / Smartsoft / integrated mongosh",
-      "administrative_write_acceptance": false,
+      "administrative_write_acceptance": true,
       "compass_port": "mongodb-observer-compass.cjs",
       "read_only_exact_plan_preflight": "mongodb-compass-preflight-receipt.json"
-    }
+    },
+    "runtime_credentials_provisioned": false,
+    "collection_initialization_receipt": "ai-os-development/docs/pilots/observer-disabled-initialization.json",
+    "scoped_access_plan": "observer-scoped-access-plan.json",
+    "private_node_source": "DevelopmentObserver.node.js",
+    "private_node_installed": false,
+    "runtime_credential_binding_verified": false
   },
   "fallback": {
     "route_id": "n8n-pushover-owner",
@@ -91,5 +97,10 @@
   "model_calls": 0,
   "finalizer_activated": false,
   "archived_readonly_probes": 1,
-  "active_observer_workflows": 0
+  "active_observer_workflows": 0,
+  "prepared_workflow_sources": [
+    "observer-ingress-prepared.workflow.json",
+    "observer-observe-prepared.workflow.json",
+    "observer-heartbeat-ingress-unpublished.workflow.json"
+  ]
 }

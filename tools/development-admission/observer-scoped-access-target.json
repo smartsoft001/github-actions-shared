@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "database": "ai-os",
+  "project_id": "63f8d3e1e58a946d793a9e9b",
+  "cluster_name": "ClusterN8n",
+  "apply": false,
+  "atlas_roles": [
+    {
+      "roleName": "development_observer_ingress",
+      "actions": [
+        {
+          "action": "FIND",
+          "resources": [
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "registry"
+            },
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "heartbeats"
+            }
+          ]
+        },
+        {
+          "action": "UPDATE",
+          "resources": [
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "heartbeats"
+            }
+          ]
+        }
+      ],
+      "inheritedRoles": []
+    },
+    {
+      "roleName": "development_observer_watch",
+      "actions": [
+        {
+          "action": "FIND",
+          "resources": [
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "registry"
+            },
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "heartbeats"
+            },
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "reservations"
+            },
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "notices"
+            },
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "receipts"
+            }
+          ]
+        },
+        {
+          "action": "UPDATE",
+          "resources": [
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "reservations"
+            }
+          ]
+        },
+        {
+          "action": "INSERT",
+          "resources": [
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "notices"
+            },
+            {
+              "cluster": false,
+              "db": "ai-os",
+              "collection": "receipts"
+            }
+          ]
+        }
+      ],
+      "inheritedRoles": []
+    }
+  ],
+  "users": [
+    {
+      "username": "ai_os_observer_ingress",
+      "databaseName": "admin",
+      "roles": [
+        {
+          "databaseName": "admin",
+          "roleName": "development_observer_ingress"
+        }
+      ],
+      "cluster_scope": [
+        {
+          "name": "ClusterN8n",
+          "type": "CLUSTER"
+        }
+      ],
+      "password_present": false,
+      "created": false
+    },
+    {
+      "username": "ai_os_observer_watch",
+      "databaseName": "admin",
+      "roles": [
+        {
+          "databaseName": "admin",
+          "roleName": "development_observer_watch"
+        }
+      ],
+      "cluster_scope": [
+        {
+          "name": "ClusterN8n",
+          "type": "CLUSTER"
+        }
+      ],
+      "password_present": false,
+      "created": false
+    }
+  ],
+  "credential_bindings": {
+    "ingress": null,
+    "observe": null
+  },
+  "runtime_enabled": false
+}

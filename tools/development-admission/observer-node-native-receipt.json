@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "n8n": "2.46.6",
+  "node": "24.16.0",
+  "results": [
+    {
+      "mode": "ingress",
+      "custom_node_loaded": true,
+      "prepared_guard_verified": true,
+      "credentials_attached": 0
+    },
+    {
+      "mode": "observe",
+      "custom_node_loaded": true,
+      "prepared_guard_verified": true,
+      "credentials_attached": 0
+    }
+  ],
+  "stage_manifest": {
+    "schema_version": 1,
+    "prepared_only_default": true,
+    "installed": false,
+    "files_sha256": {
+      "DevelopmentObserver.node.js": "317c551dea435d9cbf57d415b38342fa437eda273a1443b8f5195e0ee12cd796",
+      "mongodb-observer-node-runtime.cjs": "beb231ab4ad0f41e2fb8cd59b01febea33a0303251396d674b6d7189067daf45",
+      "mongodb-observer-access.cjs": "ea5be4fe37dde43eb4052a9bc0dfd224d8f2b00d41165eb957eb187af355a419",
+      "mongodb-observer.cjs": "d1e9f86bf7e4092143369c336a8d6c55f2f258e330b311d52568541893d03772",
+      "mongodb-observer-schema.cjs": "4da6169d15734aec3e3b4d7aaae145caefcd0b78ea62507ed8533cc07719bde9",
+      "external-observer-protocol.cjs": "75d212dc7b9837db4ed4e0f2f46aee88e0462fc2ad870a41de609515e585543b"
+    }
+  },
+  "external_network_blocked": true,
+  "live_workflows_changed": 0,
+  "model_calls": 0,
+  "real_provider_calls": 0,
+  "installed_on_production": false,
+  "temporary_state_removed": true
+}
