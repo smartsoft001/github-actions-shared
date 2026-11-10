@@ -115,3 +115,7 @@ approve publication/cadence separately. A successful unit test or the earlier
 one-shot review notification is not any of these runtime approvals.
 
 Tele stays at the next planned release. No model or finalizer activation.
+
+The next prepared access step is [OBSERVER-PROVISIONING.md](OBSERVER-PROVISIONING.md):
+target-bound SQL with NOLOGIN roles and a disabled, guarded native n8n readiness
+graph. Live host/admin access remains unresolved; no actual provisioning occurs.

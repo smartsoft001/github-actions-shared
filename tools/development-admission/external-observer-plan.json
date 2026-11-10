@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "prepared-offline-only",
+  "status": "prepared-provisioning-and-native-readiness",
   "enabled": false,
   "primary_host": "ai-os-server",
   "observer_runtime_candidate": "n8n outside the primary host failure domain",
@@ -22,10 +22,14 @@
     "engine": "PostgreSQL",
     "must_be_outside_primary_host": true,
     "host": null,
-    "database": null,
+    "database": "ai_os_development_observer",
     "ingress_credential_id": null,
     "observer_credential_id": null,
     "schema_file": "external-observer.sql",
+    "provisioning_sql_generator": "observer-provisioning.cjs",
+    "initial_roles_nologin": true,
+    "native_readiness_builder": "build-observer-db-preflight.cjs",
+    "native_readiness_created": false,
     "provisioned": false,
     "runtime_can_change_registry_activation_flags": false
   },
