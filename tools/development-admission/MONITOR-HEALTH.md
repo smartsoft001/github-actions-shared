@@ -110,3 +110,9 @@ It accepts no runtime profiles/paths/options and prints a synthetic receipt for
 credential-failed primary delivery, one watchdog grant, duplicate suppression,
 stalled work, missing primary files and a new reminder after1800s. The printed
 provider receipts are fake; `real_provider_calls=0` and activation remains false.
+
+The next unbound external transport is specified in
+[EXTERNAL-OBSERVER.md](EXTERNAL-OBSERVER.md): read-only outbound export, a bounded
+receiver and separate PostgreSQL reservations. It is tested with synthetic data;
+external hosting, scoped credentials, native n8n wiring and fallback delivery
+are not provisioned or accepted by that preparation.
