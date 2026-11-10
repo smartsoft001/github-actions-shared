@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "status": "prepared-offline-only",
+  "enabled": false,
+  "primary_host": "ai-os-server",
+  "observer_runtime_candidate": "n8n outside the primary host failure domain",
+  "observer_physical_host_verified": false,
+  "heartbeat_direction": "outbound from ai-os-server; no incoming server hook",
+  "heartbeat_http_candidate": {
+    "method": "POST",
+    "origin": "https://n8n.smartsoft.biz.pl",
+    "candidate_path": "/webhook/development-monitor-heartbeat-v1",
+    "created": false,
+    "published": false,
+    "dedicated_auth_credential_id": null,
+    "reuse_metadata_read_auth": false,
+    "redirects": false,
+    "automatic_retry": false,
+    "maximum_payload_bytes": 2048
+  },
+  "database": {
+    "engine": "PostgreSQL",
+    "must_be_outside_primary_host": true,
+    "host": null,
+    "database": null,
+    "ingress_credential_id": null,
+    "observer_credential_id": null,
+    "schema_file": "external-observer.sql",
+    "provisioned": false,
+    "runtime_can_change_registry_activation_flags": false
+  },
+  "fallback": {
+    "route_id": "n8n-pushover-owner",
+    "candidate": "existing owner Pushover channel stored in n8n",
+    "credential_bound": false,
+    "independence_from_primary_keychain_verified": false,
+    "independent_provider": false,
+    "note": "Same Pushover provider; this does not cover a Pushover-wide outage",
+    "network_deadline_ms": 10000,
+    "automatic_retry": false,
+    "human_receipt_verified": false
+  },
+  "live_n8n_workflows_created": 0,
+  "new_credentials_created": 0,
+  "new_database_permissions": 0,
+  "new_services_or_schedules": 0,
+  "model_calls": 0,
+  "finalizer_activated": false
+}
