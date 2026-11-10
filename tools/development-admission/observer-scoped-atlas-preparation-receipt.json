@@ -13,12 +13,20 @@
   "planned_username_collisions": false,
   "planned_role_collisions": false,
   "prepared_role_forms": 2,
-  "role_forms_submitted": false,
-  "roles_created": 0,
+  "role_forms_submitted": true,
+  "roles_created": 2,
   "users_created": 0,
   "passwords_entered": false,
   "database_writes": 0,
   "n8n_published": false,
   "model_calls": 0,
-  "finalizer_activated": false
+  "finalizer_activated": false,
+  "role_readback_verified": true,
+  "role_approval": "explicit owner approval 2026-11-10",
+  "account_forms_prepared": 2,
+  "account_forms_submitted": false,
+  "account_cluster_scope": "ClusterN8n",
+  "account_builtin_roles": 0,
+  "account_custom_roles_each": 1,
+  "password_entry": "owner handoff required"
 }

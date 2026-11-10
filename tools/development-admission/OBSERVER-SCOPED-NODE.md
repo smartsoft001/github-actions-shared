@@ -3,8 +3,9 @@
 Development #29 was merged after CI42852499157 succeeded for exact e0014ef. Reopening
 its PR retriggered missing CI; merge
 3b9ad8a69fde94a04ad531e578895e8eec4d890b. Clean server main advanced ff-only; foundation PASS.
-The previously accepted live ai-os initialization is preserved. No new DB writes,
-users/roles, production installation, workflow creation/publication or model here.
+The previously accepted live ai-os initialization is preserved. Two custom roles
+were created after owner approval; no database document writes, users, production
+installation, workflow publication or model calls occurred.
 
 ## Accounts prepared, not created
 
@@ -34,10 +35,13 @@ never paste a password/token/URI into chat or Git. Atlas login is now verified. 
 (`63f8d3e1e58a946d793a9e9b`), ClusterN8n and the exact disabled registry binding.
 `observer-scoped-access-target.json` binds the template to that verified target,
 with each user scoped only to ClusterN8n. It remains non-executable (`apply=false`),
-with no users created or credential bindings. Two correct role forms are prepared
-but unsaved. No collisions were observed. See
-`observer-scoped-atlas-preparation-receipt.json`. Saving roles requires action-time
-approval; account password entry and submission remain with Emil.
+with no users created or credential bindings. Both roles were saved after explicit owner action-time approval and their exact
+actions/resources were verified on the Atlas roles list. Both account forms are
+prepared, each with one matching custom role, zero built-ins and ClusterN8n scope.
+Passwords remain empty; Emil must enter and submit them. No accounts created.
+No collisions were observed. See
+`observer-scoped-atlas-preparation-receipt.json`. The two-role approval has been consumed; account password entry and submission
+remain with Emil. The target plan stays apply=false and does not create users.
 
 ## Why a private node
 
