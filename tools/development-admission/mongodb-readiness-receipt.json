@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "workflow_id": "sLW8tlfhYnxP6r1s",
+  "execution_id": "464841",
+  "credential_id": "bKjCNekrlGKLq8C2",
+  "credential_name": "MongoDB ai os (claude)",
+  "database": "ai-os",
+  "namespace_verified": true,
+  "registry_read_access_verified": true,
+  "registry_record_present": false,
+  "live_database_writes": 0,
+  "secret_exported": false,
+  "published": false,
+  "model_calls": 0,
+  "finalizer_activated": false,
+  "probe_archived": true
+}
