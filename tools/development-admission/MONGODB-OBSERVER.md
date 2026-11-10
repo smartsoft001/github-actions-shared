@@ -117,3 +117,5 @@ resets inside the ephemeral localhost DB; the initializer never does. Nothing ap
 to live ai-os. A real plan still needs the reviewed producer binding/baseline, scoped
 administrative execution route and explicit authorization. A synthetic plan hash
 is not a production approval. Users, runtime roles/auth and publication are separate.
+
+Concrete disabled binding/plan and one-shot administrator entry: [MONGODB-ADMIN-PLAN.md](MONGODB-ADMIN-PLAN.md). No live initialization or administrative credential access.

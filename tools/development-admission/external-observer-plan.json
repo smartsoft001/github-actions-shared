@@ -61,7 +61,12 @@
       "authorization_required": true,
       "existing_observer_collection_policy": "refuse-even-empty",
       "partial_failure": "preserve-disabled-state-and-require-manual-reconciliation",
-      "creates_users_or_roles": false
+      "creates_users_or_roles": false,
+      "admin_entry": "mongodb-observer-admin.mjs",
+      "reviewed_candidate_plan": "observer-production-initialization-plan.json",
+      "plan_sha256": "05a87db0e6020eef2cb629138821e455fbe0445cd2ff86d493aeb05f7f9bc0fb",
+      "binding_installed": false,
+      "administrative_route_verified": false
     }
   },
   "fallback": {

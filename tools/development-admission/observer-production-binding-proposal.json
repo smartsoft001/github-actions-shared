@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "candidate_not_installed": true,
+  "production_enabled": false,
+  "source_proof": "ai-os-development/docs/pilots/producer-monitor-metadata-readiness.json",
+  "source_window_since": "2026-11-09T00:00:00+00:00",
+  "health_policy": {
+    "schema_version": 1,
+    "enabled": false,
+    "monitor_profile": {
+      "schema_version": 1,
+      "scope": "production",
+      "enabled": false,
+      "since": 1794182400,
+      "targets": [
+        "Kj0Bm4Q2XnRtKsn1",
+        "YfyZaVDeZspB8VgK"
+      ],
+      "cooldown_seconds": 1800,
+      "implementation_sha256": "be16656cffb20c0bf05baddd0610f0c40eca3a6c20cb9547acde880130573e7e"
+    },
+    "health_sha256": "7b85fa10ab1cd3508bd0d7ca8bd2db5f7ac677eee448d6275084e70639c53b28",
+    "cycle_sha256": "fcad882d1a0a198a4ae76426a2896ca25cbea75f342c81bf7b86f7c72ff7f2e0",
+    "heartbeat_seconds": 180,
+    "cycle_seconds": 60,
+    "delivery_seconds": 60,
+    "cooldown_seconds": 1800
+  },
+  "binding_sha256": "50167af8c101368654a483b6fa361db4b3ccadc7e808e99cfa6656c4c4c98909",
+  "timestamp_encoding": "integer epoch seconds; stable JSON Python/Node roundtrip"
+}
