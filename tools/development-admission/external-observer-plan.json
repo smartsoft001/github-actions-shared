@@ -66,7 +66,11 @@
       "reviewed_candidate_plan": "observer-production-initialization-plan.json",
       "plan_sha256": "05a87db0e6020eef2cb629138821e455fbe0445cd2ff86d493aeb05f7f9bc0fb",
       "binding_installed": false,
-      "administrative_route_verified": false
+      "administrative_route_verified": true,
+      "administrative_route": "MongoDB Compass / Smartsoft / integrated mongosh",
+      "administrative_write_acceptance": false,
+      "compass_port": "mongodb-observer-compass.cjs",
+      "read_only_exact_plan_preflight": "mongodb-compass-preflight-receipt.json"
     }
   },
   "fallback": {

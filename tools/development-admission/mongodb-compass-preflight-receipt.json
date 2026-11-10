@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-10",
+  "user_identified_connection": "Smartsoft in MongoDB Compass",
+  "database": "ai-os",
+  "connection_verified": true,
+  "read_only_command_permissions": {
+    "connection_status_ok": true,
+    "create_collection_advertised": true,
+    "insert_seed_advertised": true,
+    "read_seed_advertised": true,
+    "broad_privileges": true
+  },
+  "runtime_least_privilege_verified": false,
+  "existing_observer_collections": [],
+  "other_collection_count": 1,
+  "exact_plan_preflight": "compass-preflight-passed",
+  "plan_sha256": "05a87db0e6020eef2cb629138821e455fbe0445cd2ff86d493aeb05f7f9bc0fb",
+  "atlas_in_filter": "refused: code8000, name filter not a regex",
+  "exact_name_filters": "passed: five fixed names, no unrelated data enumeration",
+  "live_database_writes": 0,
+  "credentials_exported": false,
+  "new_permissions": 0,
+  "new_connections_or_users_created": 0,
+  "model_calls": 0,
+  "published": false,
+  "finalizer_activated": false,
+  "live_write_acceptance": false
+}

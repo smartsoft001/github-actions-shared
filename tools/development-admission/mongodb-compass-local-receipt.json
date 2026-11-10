@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "result": "passed",
+  "database": "ephemeral-loopback-only",
+  "checks": 48,
+  "authenticated_roles": 2,
+  "parallel_observers": 6,
+  "synthetic_sender_calls": 2,
+  "real_provider_calls": 0,
+  "cloud_connections": 0,
+  "model_calls": 0,
+  "production_changes": 0,
+  "node_tests": 91,
+  "mongodb": "7.0.14",
+  "driver": "6.22.0",
+  "data_directory_removed": true,
+  "server_stopped": true,
+  "raw_command_compass_port": true,
+  "live_initialization": false
+}

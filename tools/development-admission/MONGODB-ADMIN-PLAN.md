@@ -1,3 +1,5 @@
+> Current route verified on10November: existing Compass **Smartsoft** connection, integrated mongosh, database **ai-os**. No secret export or new private URIfile is needed for this route. The standalone driver CLI below remains an unaccepted alternative, not a blocker. No live initialization has occurred.
+
 # Concrete disabled observer plan — preparation, not authorization
 
 Target: database `ai-os`; plain registry/heartbeats/reservations/notices/receipts.
@@ -85,3 +87,46 @@ confirm TLS/physical independence and scoped rights, then separately authorize a
 read-only admin preflight followed by exact-plan initialization. No live writes,
 publication, active n8n changes, services, model or finalizer activation here.
 Tele acceptance remains at the next planned release.
+
+## Verified Compass route — read-only acceptance
+
+User identified Smartsoft. Authenticated metadata inspection advertises create/insert/find
+permissions and broader access; this is an administrative session, not an accepted
+least-privilege runtime credential. One unrelated collection remains untouched. All
+five observer names are absent. Exact-plan inspectCompass passed with SHA
+05a87db0e6020eef2cb629138821e455fbe0445cd2ff86d493aeb05f7f9bc0fb and write_attempted=false.
+No password/URI export, privilege grant, user creation or database write.
+
+Actual Atlas refused listCollections name:$in with8000. Initializer now uses five
+exact-name reads before any write; each closed cursor/namespace is verified. No
+unrelated document reads or fallback to incomplete authorized-only collection lists.
+Command port maps driver wtimeoutMS to raw-command wtimeout and rejects writeErrors,
+writeConcernError, incomplete cursors or missing inserted count, even if ok=1.
+See [Mongo insert command result semantics](https://www.mongodb.com/docs/manual/reference/command/insert/)
+and [listCollections](https://www.mongodb.com/docs/manual/reference/command/listcollections/).
+
+Use a freshly staged reviewed source tree to avoid require-cache drift. The following
+read-only command works in Compass's existing authenticated mongosh context:
+
+```js
+const root = '/absolute/reviewed/source/tools/development-admission/';
+const bridge = require(root + 'mongodb-observer-compass.cjs');
+const proposal = require(root + 'observer-production-initialization-plan.json');
+await bridge.inspectCompass(db.getSiblingDB('ai-os'), proposal);
+```
+
+Only after explicit approval of exact source head and plan, the separate write call is:
+
+```js
+await bridge.initializeCompass(db.getSiblingDB('ai-os'), proposal, {
+  approved: true,
+  planSha256: '05a87db0e6020eef2cb629138821e455fbe0445cd2ff86d493aeb05f7f9bc0fb'
+});
+```
+
+No such write call has been executed. It creates only five validated collections/three
+disabled seeds, no roles/users or activation. Any uncertain result is held for manual
+review, never retried/reset.48 local Mongo checks/91 Node PASS, including raw-command
+initialization/readback and conservative error handling. Actual Atlas writes, runtime
+scopes, TLS properties and physical independence still need their own acceptance.
+Receipt: mongodb-compass-preflight-receipt.json. Tele remains at planned release.
