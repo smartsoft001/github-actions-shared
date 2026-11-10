@@ -50,3 +50,13 @@ test('prepared workflow sources cannot schedule, connect credentials or bypass t
   assert.equal(ingress.nodes[0].parameters.authentication,'headerAuth');
   assert.match(ingress.nodes[1].parameters.jsCode,/^throw new Error/);
 });
+
+test('verified Atlas target changes only project and exact cluster scope; access remains disabled',()=>{
+  const target=require('./observer-scoped-access-target.json');
+  assert.equal(target.project_id,'63f8d3e1e58a946d793a9e9b');
+  assert.equal(target.cluster_name,'ClusterN8n');
+  for(const user of target.users)assert.deepEqual(user.cluster_scope,[{name:'ClusterN8n',type:'CLUSTER'}]);
+  const unbound=structuredClone(target);unbound.project_id=null;unbound.cluster_name=null;
+  for(const user of unbound.users)user.cluster_scope=null;
+  assert.deepEqual(unbound,accessPlan());
+});

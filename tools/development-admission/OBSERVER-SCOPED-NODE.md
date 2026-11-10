@@ -30,8 +30,14 @@ Atlas requires its [UI/API/CLI for roles](https://www.mongodb.com/docs/atlas/sec
 and [database users](https://www.mongodb.com/docs/atlas/security-add-mongodb-users/),
 not Compass createUser/createRole. Role creation is an access grant requiring explicit
 approval. User password entry/confirmation/submission stays with Emil in the UI;
-never paste a password/token/URI into chat or Git. Atlas control-plane login is
-currently required; the authenticated Compass DB session does not replace it.
+never paste a password/token/URI into chat or Git. Atlas login is now verified. The authenticated UI confirmed Project 0
+(`63f8d3e1e58a946d793a9e9b`), ClusterN8n and the exact disabled registry binding.
+`observer-scoped-access-target.json` binds the template to that verified target,
+with each user scoped only to ClusterN8n. It remains non-executable (`apply=false`),
+with no users created or credential bindings. Two correct role forms are prepared
+but unsaved. No collisions were observed. See
+`observer-scoped-atlas-preparation-receipt.json`. Saving roles requires action-time
+approval; account password entry and submission remain with Emil.
 
 ## Why a private node
 
