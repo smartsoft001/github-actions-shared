@@ -13,8 +13,12 @@ function plan(binding,baseline){
 }
 async function vacant(db){
   if(db.databaseName!==DATABASE)throw Error('Wrong database');
-  const existing=await db.listCollections({name:{$in:Object.values(COLLECTIONS)}},{nameOnly:true,maxTimeMS:3000}).toArray();
-  if(existing.length)throw Error('Observer namespace already exists; manual review required');
+  // Atlas rejected the aggregate $in name filter in a real read-only preflight.
+  // Five exact-name reads also work there; never enumerate unrelated collections.
+  for(const name of Object.values(COLLECTIONS)){
+    const existing=await db.listCollections({name},{nameOnly:true,maxTimeMS:3000}).toArray();
+    if(existing.length)throw Error('Observer namespace already exists; manual review required');
+  }
 }
 async function prepare(db,{binding,baseline}){
   const proposal=plan(binding,baseline);await vacant(db);return proposal;

@@ -13,6 +13,7 @@ const {mongoPort,ingest,observe,DATABASE,COLLECTIONS}=require('./mongodb-observe
 const {specification}=require('./mongodb-observer-schema.cjs');
 const {MONITOR,hash}=require('./external-observer-protocol.cjs');
 const {prepare,initialize}=require('./mongodb-observer-initialize.cjs');
+const {inspectCompass,initializeCompass}=require('./mongodb-observer-compass.cjs');
 if(!process.env.OBSERVER_TEST_MONGOD||!process.env.OBSERVER_TEST_MONGODB_DRIVER)throw Error('Explicit local mongod binary and driver path required');
 const {MongoClient}=require(process.env.OBSERVER_TEST_MONGODB_DRIVER);
 const dir=await mkdtemp(join(tmpdir(),'observer-mongo-'));
@@ -38,8 +39,11 @@ try{
   check(!(await db.listCollections({name:COLLECTIONS.registry}).toArray()).length);
   const spec=specification(binding,new Date(Date.now()-190000),'manual-test');
   const proposal=await prepare(db,{binding,baseline:spec.seeds.registry.observe_since});
+  const shellDb={getName:()=>db.databaseName,runCommand:db.command.bind(db)};
+  check((await inspectCompass(shellDb,proposal)).write_attempted===false);
+  check((await initializeCompass(shellDb,proposal)).write_attempted===false);
   check((await initialize(db,proposal)).write_attempted===false);
-  check((await initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialized-disabled');
+  check((await initializeCompass(shellDb,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialized-disabled');
   const seeded=await collection('registry').findOne({_id:MONITOR});
   check(seeded.scope==='production'&&seeded.enabled===false);
   check((await initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialization-refused');
@@ -110,6 +114,13 @@ try{
   check((await collection('registry').findOne({_id:MONITOR})).enabled===false);
   check((await initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialization-refused');
   check((await db.listCollections({name:{$in:Object.values(COLLECTIONS)}}).toArray()).length===1);
+  // Exercise the concrete disabled proposal, never real runtime enablement.
+  await collection('registry').drop();
+  const candidate=require('./observer-production-initialization-plan.json');
+  check((await initializeCompass(shellDb,candidate,{approved:true,planSha256:candidate.plan_sha256})).action==='initialized-disabled');
+  const candidateSeed=await collection('registry').findOne({_id:MONITOR});
+  check(candidateSeed.binding_sha256===candidate.binding_sha256&&candidateSeed.enabled===false&&candidateSeed.scope==='production');
+  check((await observe(watch,sender,manual)).action==='observer-disabled'&&sends===2);
   console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
 }finally{
   await Promise.allSettled(clients.map(c=>c.close()));

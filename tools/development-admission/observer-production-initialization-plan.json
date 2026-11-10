@@ -1,0 +1,399 @@
+{
+  "schema_version": 1,
+  "database": "ai-os",
+  "binding_sha256": "50167af8c101368654a483b6fa361db4b3ccadc7e808e99cfa6656c4c4c98909",
+  "baseline": "2026-11-10T14:45:31.776Z",
+  "collections": {
+    "registry": {
+      "$and": [
+        {
+          "$jsonSchema": {
+            "bsonType": "object",
+            "additionalProperties": false,
+            "required": [
+              "_id",
+              "scope",
+              "binding_sha256",
+              "enabled",
+              "ingress_verified",
+              "external_host_verified",
+              "fallback_verified",
+              "observe_since"
+            ],
+            "properties": {
+              "_id": {
+                "bsonType": "string",
+                "enum": [
+                  "development-producers"
+                ]
+              },
+              "scope": {
+                "enum": [
+                  "production",
+                  "manual-test"
+                ]
+              },
+              "binding_sha256": {
+                "bsonType": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "enabled": {
+                "bsonType": "bool"
+              },
+              "ingress_verified": {
+                "bsonType": "bool"
+              },
+              "external_host_verified": {
+                "bsonType": "bool"
+              },
+              "fallback_verified": {
+                "bsonType": "bool"
+              },
+              "observe_since": {
+                "bsonType": "date"
+              }
+            }
+          }
+        },
+        {
+          "$or": [
+            {
+              "enabled": false
+            },
+            {
+              "ingress_verified": true,
+              "external_host_verified": true,
+              "fallback_verified": true
+            }
+          ]
+        }
+      ]
+    },
+    "heartbeats": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "additionalProperties": false,
+        "required": [
+          "_id",
+          "binding_sha256",
+          "revision",
+          "heartbeat"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "string",
+            "enum": [
+              "development-producers"
+            ]
+          },
+          "binding_sha256": {
+            "bsonType": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "revision": {
+            "bsonType": [
+              "int",
+              "long",
+              "double"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "heartbeat": {
+            "oneOf": [
+              {
+                "bsonType": "null"
+              },
+              {
+                "bsonType": "object",
+                "additionalProperties": false,
+                "required": [
+                  "packet",
+                  "packet_sha256",
+                  "received_at"
+                ],
+                "properties": {
+                  "packet": {
+                    "bsonType": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "schema_version",
+                      "monitor_id",
+                      "binding_sha256",
+                      "sequence",
+                      "cycle_id",
+                      "cycle_finished_at",
+                      "sent_at",
+                      "monitor",
+                      "delivery",
+                      "issues"
+                    ],
+                    "properties": {
+                      "schema_version": {
+                        "enum": [
+                          1
+                        ]
+                      },
+                      "monitor_id": {
+                        "bsonType": "string",
+                        "enum": [
+                          "development-producers"
+                        ]
+                      },
+                      "binding_sha256": {
+                        "bsonType": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "sequence": {
+                        "bsonType": [
+                          "int",
+                          "long",
+                          "double"
+                        ],
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "cycle_id": {
+                        "bsonType": "string",
+                        "pattern": "^[a-f0-9]{32}$"
+                      },
+                      "cycle_finished_at": {
+                        "bsonType": [
+                          "int",
+                          "long",
+                          "double"
+                        ],
+                        "minimum": 0
+                      },
+                      "sent_at": {
+                        "bsonType": [
+                          "int",
+                          "long",
+                          "double"
+                        ],
+                        "minimum": 0
+                      },
+                      "monitor": {
+                        "enum": [
+                          "alive",
+                          "unknown"
+                        ]
+                      },
+                      "delivery": {
+                        "enum": [
+                          "unknown",
+                          "pending",
+                          "idle-unverified",
+                          "provider-accepted-history"
+                        ]
+                      },
+                      "issues": {
+                        "bsonType": "array",
+                        "maxItems": 9,
+                        "uniqueItems": true,
+                        "items": {
+                          "bsonType": "string",
+                          "enum": [
+                            "health-state-unavailable",
+                            "monitor-never-started",
+                            "cycle-overdue",
+                            "cycle-failed",
+                            "heartbeat-stale",
+                            "delivery-state-unavailable",
+                            "delivery-unconfirmed",
+                            "clock-invalid",
+                            "heartbeat-missing"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "packet_sha256": {
+                    "bsonType": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "received_at": {
+                    "bsonType": "date"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "reservations": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "additionalProperties": false,
+        "required": [
+          "_id",
+          "binding_sha256",
+          "revision",
+          "last_attempt"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "string",
+            "enum": [
+              "development-producers"
+            ]
+          },
+          "binding_sha256": {
+            "bsonType": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "revision": {
+            "bsonType": [
+              "int",
+              "long",
+              "double"
+            ],
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "last_attempt": {
+            "oneOf": [
+              {
+                "bsonType": "null"
+              },
+              {
+                "bsonType": "object",
+                "additionalProperties": false,
+                "required": [
+                  "notice_id",
+                  "at"
+                ],
+                "properties": {
+                  "notice_id": {
+                    "bsonType": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "at": {
+                    "bsonType": "date"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "notices": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "additionalProperties": false,
+        "required": [
+          "_id",
+          "monitor_id",
+          "binding_sha256",
+          "attempted_at",
+          "issues"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "monitor_id": {
+            "bsonType": "string",
+            "enum": [
+              "development-producers"
+            ]
+          },
+          "binding_sha256": {
+            "bsonType": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "attempted_at": {
+            "bsonType": "date"
+          },
+          "issues": {
+            "bsonType": "array",
+            "maxItems": 9,
+            "uniqueItems": true,
+            "items": {
+              "bsonType": "string",
+              "enum": [
+                "health-state-unavailable",
+                "monitor-never-started",
+                "cycle-overdue",
+                "cycle-failed",
+                "heartbeat-stale",
+                "delivery-state-unavailable",
+                "delivery-unconfirmed",
+                "clock-invalid",
+                "heartbeat-missing"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "receipts": {
+      "$jsonSchema": {
+        "bsonType": "object",
+        "additionalProperties": false,
+        "required": [
+          "_id",
+          "provider_status",
+          "request",
+          "acknowledged_at"
+        ],
+        "properties": {
+          "_id": {
+            "bsonType": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provider_status": {
+            "enum": [
+              1
+            ]
+          },
+          "request": {
+            "bsonType": "string",
+            "pattern": "^[A-Za-z0-9-]{8,100}$"
+          },
+          "acknowledged_at": {
+            "bsonType": "date"
+          }
+        }
+      }
+    }
+  },
+  "collection_names": {
+    "registry": "registry",
+    "heartbeats": "heartbeats",
+    "reservations": "reservations",
+    "notices": "notices",
+    "receipts": "receipts"
+  },
+  "seeds": {
+    "registry": {
+      "_id": "development-producers",
+      "scope": "production",
+      "binding_sha256": "50167af8c101368654a483b6fa361db4b3ccadc7e808e99cfa6656c4c4c98909",
+      "enabled": false,
+      "ingress_verified": false,
+      "external_host_verified": false,
+      "fallback_verified": false,
+      "observe_since": "2026-11-10T14:45:31.776Z"
+    },
+    "heartbeats": {
+      "_id": "development-producers",
+      "binding_sha256": "50167af8c101368654a483b6fa361db4b3ccadc7e808e99cfa6656c4c4c98909",
+      "revision": 0,
+      "heartbeat": null
+    },
+    "reservations": {
+      "_id": "development-producers",
+      "binding_sha256": "50167af8c101368654a483b6fa361db4b3ccadc7e808e99cfa6656c4c4c98909",
+      "revision": 0,
+      "last_attempt": null
+    }
+  },
+  "users_created": 0,
+  "roles_created": 0,
+  "enabled": false,
+  "plan_sha256": "05a87db0e6020eef2cb629138821e455fbe0445cd2ff86d493aeb05f7f9bc0fb"
+}

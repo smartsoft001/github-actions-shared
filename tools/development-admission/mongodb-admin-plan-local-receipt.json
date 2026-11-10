@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "result": "passed",
+  "database": "ephemeral-loopback-only",
+  "checks": 46,
+  "authenticated_roles": 2,
+  "parallel_observers": 6,
+  "synthetic_sender_calls": 2,
+  "real_provider_calls": 0,
+  "cloud_connections": 0,
+  "model_calls": 0,
+  "production_changes": 0,
+  "node_tests": 89,
+  "mongodb": "7.0.14",
+  "driver": "6.22.0",
+  "server_binding_matches": true,
+  "production_policy_installed": false,
+  "live_admin_route_verified": false,
+  "live_initialization": false,
+  "data_directory_removed": true,
+  "server_stopped": true
+}
