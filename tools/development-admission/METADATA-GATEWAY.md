@@ -167,5 +167,34 @@ limit timed out within10s. Delayed UI later displayed all six nodes completed,
 but the client did not verify503; no live source-failure HTTP acceptance is claimed.
 The full locked baseline was restored (versioneaacd238-e809-4948-9332-fa31eaef2f49),
 cleanup404 and UI Deactivated confirmed closure. No automatic retry, publication,
-model, schedule or finalizer activation. Real API nonempty/pagination, native503
-response and independent runtime/liveness remain open.
+model, schedule or finalizer activation. This first probe was inconclusive; the
+separate controlled tests below subsequently closed basic native HTTP coverage.
+
+## Real REST pagination and native503 accepted — 2026-11-10
+
+An unpublished, credential-free manual fixture produced exactly two synthetic
+error executions (462873/462874, workflowO8I2nNbNaONUQYGx). During one bounded
+test window the gateway's target scope was replaced with only that fixture and
+the source page size set to1. A403 readiness request preceded the authenticated
+read. The real gateway returned200 in2.1896s with exactly those two rows and
+only the four safe fields; native canvas showed two source items/pages.
+
+A negative source limit did not produce a verified source error (HTTP200);
+it is not a reliable fault-injection method. That window was closed and its
+baseline restored before a separate deterministic test changed only the source
+URL to a fixed nonexistent API path on the same host. Native editor readback
+confirmed the changed URL. After403 readiness, the real gateway returned503 in
+1.2598s with exactly `{schema_version:1,error:'metadata_unavailable'}`. No raw
+source error, workflow payload or credentials were returned. Every case was a
+single deliberate attempt, never an automatic retry or a timeout increase.
+
+Final versioncb4e3145-1f81-4ee5-ac0e-52371716be5c matches the original six-node
+baseline exactly: original two producers, source URL, page size100, credential
+references and settings. Disabled trigger/preparation throw, activefalse/null,
+cleanup404 and native UI Deactivated verified. No own pending executions remain;
+the isolated fixture is archived. Production producer versions are unchanged.
+
+These are controlled manual acceptance checks, including deployed REST cursor
+behavior with synthetic records. They do not accept autonomous monitoring,
+high-volume production history, independent liveness, delivery health or any
+future activation. No publication/model/schedule/finalizer; Tele at next release.
