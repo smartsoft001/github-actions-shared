@@ -1,3 +1,5 @@
+> Current target (10 November): MongoDB, selected by Emil. See [MONGODB-OBSERVER.md](MONGODB-OBSERVER.md). PostgreSQL below is historical evidence, not a deployment prerequisite or MongoDB acceptance.
+
 # Prepared external heartbeat and fallback observer
 
 This package prepares an outbound heartbeat protocol and PostgreSQL observer.
@@ -116,6 +118,5 @@ one-shot review notification is not any of these runtime approvals.
 
 Tele stays at the next planned release. No model or finalizer activation.
 
-The next prepared access step is [OBSERVER-PROVISIONING.md](OBSERVER-PROVISIONING.md):
-target-bound SQL with NOLOGIN roles and a disabled, guarded native n8n readiness
-graph. Live host/admin access remains unresolved; no actual provisioning occurs.
+The current access preparation is [MONGODB-OBSERVER.md](MONGODB-OBSERVER.md).
+The earlier unmerged PostgreSQL provisioning/preflight proposal was withdrawn.
