@@ -45,4 +45,13 @@ function normalizePages(pages, query, now) {
     observed_at:query.observed_at,started_after:query.startedAfter,started_before:query.startedBefore,
     complete:true,estimated:false,count:rows.length,data:rows};
 }
-module.exports={validateRequest,normalizePages};
+function requestEnvelope(request, now) {
+  try { return {allowed:true,...validateRequest(request,now)}; }
+  catch { return {allowed:false,reply_code:400,reply_body:{schema_version:1,error:'invalid_metadata_request'}}; }
+}
+
+function responseEnvelope(pages, query, now) {
+  try { return {reply_code:200,reply_body:normalizePages(pages,query,now)}; }
+  catch { return {reply_code:503,reply_body:{schema_version:1,error:'metadata_unavailable'}}; }
+}
+module.exports={validateRequest,normalizePages,requestEnvelope,responseEnvelope};
