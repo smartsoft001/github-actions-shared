@@ -14,6 +14,7 @@ const {specification}=require('./mongodb-observer-schema.cjs');
 const {MONITOR,hash}=require('./external-observer-protocol.cjs');
 const {prepare,initialize}=require('./mongodb-observer-initialize.cjs');
 const {inspectCompass,initializeCompass}=require('./mongodb-observer-compass.cjs');
+const {executeObserver}=require('./mongodb-observer-node-runtime.cjs');
 if(!process.env.OBSERVER_TEST_MONGOD||!process.env.OBSERVER_TEST_MONGODB_DRIVER)throw Error('Explicit local mongod binary and driver path required');
 const {MongoClient}=require(process.env.OBSERVER_TEST_MONGODB_DRIVER);
 const dir=await mkdtemp(join(tmpdir(),'observer-mongo-'));
@@ -24,7 +25,8 @@ const options={retryReads:false,retryWrites:false,serverSelectionTimeoutMS:1000,
 const clients=[];let checks=0;
 const check=(value)=>{assert.ok(value);checks++;};
 const pwd=randomBytes(32).toString('hex');
-const url=user=>`mongodb://${user?`${user}:${pwd}@`:''}127.0.0.1:${port}/${user==='root'?'admin':DATABASE}`;
+const login=user=>({ingress:'ai_os_observer_ingress',watch:'ai_os_observer_watch'}[user]??user);
+const url=user=>`mongodb://${user?`${login(user)}:${pwd}@`:''}127.0.0.1:${port}/${user==='root'?'admin':DATABASE}`;
 const open=async(user)=>{const c=new MongoClient(url(user),options);clients.push(c);await c.connect();return c;};
 try{
   let bootstrap;
@@ -51,7 +53,7 @@ try{
   // Only the fixture administrator switches the local acceptance scope.
   await collection('registry').updateOne({_id:MONITOR},{$set:{scope:'manual-test'}});
   for(const role of spec.roles)await db.command({createRole:role.role,privileges:role.privileges,roles:[]});
-  for(const [user,role] of [['ingress','development_observer_ingress'],['watch','development_observer_watch']])await db.command({createUser:user,pwd,roles:[{role,db:DATABASE}]});
+  for(const [user,role] of [['ingress','development_observer_ingress'],['watch','development_observer_watch']])await db.command({createUser:login(user),pwd,roles:[{role,db:DATABASE}]});
   const ingress=mongoPort(await open('ingress')),watch=mongoPort(await open('watch'));
   const manual={allowManualTest:true};let sends=0;
   const sender=async()=>{sends++;return {status:1,request:'synthetic-receipt-0001'};};
@@ -121,7 +123,23 @@ try{
   const candidateSeed=await collection('registry').findOne({_id:MONITOR});
   check(candidateSeed.binding_sha256===candidate.binding_sha256&&candidateSeed.enabled===false&&candidateSeed.scope==='production');
   check((await observe(watch,sender,manual)).action==='observer-disabled'&&sends===2);
-  console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
+  // Custom-node boundary with real restricted MongoDB users; sender remains synthetic.
+  let nodeSends=0;
+  const nodeContext={getNodeParameter:k=>({preparedOnly:false,mode:'observe',approvedMongoCredentialId:'local-watch',recipient:'x'.repeat(30)}[k]),
+    getNode:()=>({credentials:{mongoDb:{id:'local-watch'},pushoverApi:{id:'synthetic-owner'}},retryOnFail:false}),
+    getInputData:()=>[{json:{}}],getCredentials:async()=>({configurationType:'connectionString',database:DATABASE,connectionString:'mongodb+srv://synthetic.invalid'}),
+    helpers:{httpRequestWithAuthentication:async function(kind,opts){check(kind==='pushoverApi'&&opts.disableFollowRedirect===true&&opts.maxRedirects===0&&opts.timeout===10000&&opts.abortSignal);nodeSends++;return {status:1,request:'synthetic-n8n-node-receipt'};}}};
+  const loadFor=user=>()=>class {constructor(uri,opts){check(opts.tls===true&&opts.retryReads===false&&opts.retryWrites===false);const c=new MongoClient(url(user),options);clients.push(c);return c;}};
+  await assert.rejects(()=>executeObserver(nodeContext,{loadDriver:loadFor('watch')}),/AI OS observer blocked/);checks++;
+  check((await collection('reservations').findOne({_id:MONITOR})).last_attempt===null&&nodeSends===0);
+  await collection('registry').updateOne({_id:MONITOR},{$set:{enabled:true,ingress_verified:true,external_host_verified:true,fallback_verified:true}});
+  const nodeFirst=await executeObserver(nodeContext,{loadDriver:loadFor('watch')});
+  check(nodeFirst[0][0].json.delivery==='provider-accepted'&&nodeSends===1);
+  const nodeRepeat=await executeObserver(nodeContext,{loadDriver:loadFor('watch')});
+  check(['already-attempted','cooldown'].includes(nodeRepeat[0][0].json.action)&&nodeSends===1);
+  await assert.rejects(()=>executeObserver(nodeContext,{loadDriver:loadFor('ingress')}),/AI OS observer blocked/);checks++;
+  check(nodeSends===1);
+  console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends+nodeSends,custom_node_sender_calls:nodeSends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
 }finally{
   await Promise.allSettled(clients.map(c=>c.close()));
   if(proc.exitCode===null&&proc.pid){proc.kill('SIGTERM');await Promise.race([new Promise(r=>proc.once('exit',r)),delay(10000).then(()=>{if(proc.exitCode===null)proc.kill('SIGKILL');})]);}

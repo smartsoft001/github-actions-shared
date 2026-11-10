@@ -1,0 +1,139 @@
+{
+  "id": "ObserverHeartbeatPrepared",
+  "name": "[UNPUBLISHED] AI OS heartbeat ingress",
+  "active": false,
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Heartbeat inbound disabled",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "disabled": true,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "development-monitor-heartbeat-v1",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "guard",
+      "name": "Preparation gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "throw new Error(\"Prepared ingress: not authorized for runtime\");"
+      }
+    },
+    {
+      "id": "packet",
+      "name": "Bounded packet only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows=$input.all();if(rows.length!==1)throw new Error(\"One heartbeat required\");const packet=rows[0].json.body;if(!packet||typeof packet!==\"object\"||Array.isArray(packet)||JSON.stringify(packet).length>2048)throw new Error(\"Bounded heartbeat required\");return [{json:{packet}}];"
+      }
+    },
+    {
+      "id": "ingress",
+      "name": "Prepared Mongo ingress",
+      "type": "CUSTOM.developmentObserver",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "preparedOnly": true,
+        "mode": "ingress",
+        "approvedMongoCredentialId": "",
+        "recipient": ""
+      },
+      "retryOnFail": false
+    },
+    {
+      "id": "reply",
+      "name": "Reply after durable ingress",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: [\"heartbeat-recorded\", \"duplicate-no-refresh\"].includes($json.action), action: $json.action } }}",
+        "options": {
+          "responseCode": "={{ [\"heartbeat-recorded\", \"duplicate-no-refresh\"].includes($json.action) ? 200 : 409 }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Heartbeat inbound disabled": {
+      "main": [
+        [
+          {
+            "node": "Preparation gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparation gate": {
+      "main": [
+        [
+          {
+            "node": "Bounded packet only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounded packet only": {
+      "main": [
+        [
+          {
+            "node": "Prepared Mongo ingress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepared Mongo ingress": {
+      "main": [
+        [
+          {
+            "node": "Reply after durable ingress",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionTimeout": 30,
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none"
+  }
+}

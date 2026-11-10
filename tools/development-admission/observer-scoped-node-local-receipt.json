@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "result": "passed",
+  "database": "ephemeral-loopback-only",
+  "checks": 59,
+  "authenticated_roles": 2,
+  "parallel_observers": 6,
+  "synthetic_sender_calls": 3,
+  "custom_node_sender_calls": 1,
+  "real_provider_calls": 0,
+  "cloud_connections": 0,
+  "model_calls": 0,
+  "production_changes": 0,
+  "mongodb": "7.0.14",
+  "driver": "6.22.0",
+  "production_accounts_created": 0,
+  "data_directory_removed": true,
+  "server_stopped": true,
+  "live_tls_handshake_verified": false
+}
