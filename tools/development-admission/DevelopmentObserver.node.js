@@ -8,6 +8,7 @@ class DevelopmentObserver {
     properties:[
       {displayName:'Prepared Only',name:'preparedOnly',type:'boolean',default:true},
       {displayName:'Mode',name:'mode',type:'options',options:[{name:'Heartbeat Ingress',value:'ingress'},{name:'Observe',value:'observe'}],default:'ingress'},
+      {displayName:'Verify Mongo Access Only',name:'verifyOnly',type:'boolean',default:false,description:'Whether to check TLS and effective MongoDB privileges without reading application data or sending alerts'},
       {displayName:'Approved Mongo Credential ID',name:'approvedMongoCredentialId',type:'string',default:''},
       {displayName:'Owner Recipient',name:'recipient',type:'string',typeOptions:{password:true},default:'',displayOptions:{show:{mode:['observe']}}},
     ]};

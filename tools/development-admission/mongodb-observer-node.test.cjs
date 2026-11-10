@@ -60,3 +60,46 @@ test('verified Atlas target changes only project and exact cluster scope; access
   for(const user of unbound.users)user.cluster_scope=null;
   assert.deepEqual(unbound,accessPlan());
 });
+
+test('Mongo access probe runs only connectionStatus and rejects swapped accounts', async () => {
+  for (const mode of ['ingress', 'observe']) {
+    const probe = context();
+    const original = probe.getNodeParameter;
+    probe.getNodeParameter = key => {
+      if (key === 'verifyOnly') return true;
+      if (key === 'mode') return mode;
+      if (key === 'recipient') assert.fail('probe read recipient');
+      return original(key);
+    };
+    probe.getInputData = () => assert.fail('probe read input');
+    Object.defineProperty(probe, 'helpers', { get: () => assert.fail('probe accessed HTTP') });
+
+    for (const actualMode of ['ingress', 'observe']) {
+      let commands = 0;
+      let closed = false;
+      class Client {
+        async connect() {}
+        db(database) {
+          assert.equal(database, 'ai-os');
+          return { command: async command => {
+            assert.deepEqual(command, { connectionStatus: 1, showPrivileges: true, maxTimeMS: 3000 });
+            commands++;
+            return status(actualMode);
+          }};
+        }
+        async close() { closed = true; }
+      }
+      const run = executeObserver(probe, { loadDriver: () => Client });
+      if (mode === actualMode) {
+        assert.deepEqual(await run, [[{ json: {
+          action: 'observer-mongo-access-verified', mode, database: 'ai-os',
+          tls_verified: true, privileges_verified: true,
+        }}]]);
+      } else {
+        await assert.rejects(run, /AI OS observer blocked/);
+      }
+      assert.equal(commands, 1);
+      assert.equal(closed, true);
+    }
+  }
+});

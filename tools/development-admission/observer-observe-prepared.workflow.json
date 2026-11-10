@@ -28,7 +28,8 @@
         "mode": "observe",
         "preparedOnly": true,
         "approvedMongoCredentialId": "",
-        "recipient": ""
+        "recipient": "",
+        "verifyOnly": true
       },
       "retryOnFail": false
     }

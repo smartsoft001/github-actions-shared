@@ -9,15 +9,18 @@ async function executeObserver(context,{loadDriver=driver}={}){
   try{
     const mode=context.getNodeParameter('mode',0),expected=context.getNodeParameter('approvedMongoCredentialId',0),node=context.getNode(),id=node.credentials?.mongoDb?.id;
     if(!['ingress','observe'].includes(mode)||typeof expected!=='string'||!expected||id!==expected||blockedIds.has(id)||node.retryOnFail===true)throw Error('Unreviewed runtime binding');
-    const items=context.getInputData();
-    if(items.length!==1||!items[0].json||JSON.stringify(items[0].json).length>4096)throw Error('One bounded input required');
-    const input=items[0].json;
-    if(mode==='ingress'&&(Object.keys(input).length!==1||!input.packet))throw Error('Heartbeat packet required');
-    let recipient;
-    if(mode==='observe'){
-      if(Object.keys(input).length)throw Error('Observer accepts no external payload');
-      recipient=context.getNodeParameter('recipient',0);
-      if(typeof recipient!=='string'||!/^[A-Za-z0-9]{30}$/.test(recipient)||!node.credentials?.pushoverApi?.id)throw Error('Reviewed owner route required');
+    const verifyOnly=context.getNodeParameter('verifyOnly',0,false)===true;
+    let input,recipient;
+    if(!verifyOnly){
+      const items=context.getInputData();
+      if(items.length!==1||!items[0].json||JSON.stringify(items[0].json).length>4096)throw Error('One bounded input required');
+      input=items[0].json;
+      if(mode==='ingress'&&(Object.keys(input).length!==1||!input.packet))throw Error('Heartbeat packet required');
+      if(mode==='observe'){
+        if(Object.keys(input).length)throw Error('Observer accepts no external payload');
+        recipient=context.getNodeParameter('recipient',0);
+        if(typeof recipient!=='string'||!/^[A-Za-z0-9]{30}$/.test(recipient)||!node.credentials?.pushoverApi?.id)throw Error('Reviewed owner route required');
+      }
     }
     const credentials=await context.getCredentials('mongoDb');
     if(credentials.configurationType!=='connectionString'||credentials.database!==DATABASE||typeof credentials.connectionString!=='string'||!/^mongodb(?:\+srv)?:\/\//.test(credentials.connectionString)||credentials.ca||credentials.cert||credentials.key)throw Error('Scoped Atlas connection-string credential required');
@@ -27,6 +30,7 @@ async function executeObserver(context,{loadDriver=driver}={}){
     await client.connect();
     const status=await client.db(DATABASE).command({connectionStatus:1,showPrivileges:true,maxTimeMS:3000});
     if(!verifyIdentity(status,mode))throw Error('Runtime identity/privileges mismatch');
+    if(verifyOnly)return [[{json:{action:'observer-mongo-access-verified',mode,database:DATABASE,tls_verified:true,privileges_verified:true}}]];
     const store=mongoPort(client);
     const send=async(grant,{signal})=>context.helpers.httpRequestWithAuthentication.call(context,'pushoverApi',{
       method:'POST',url:'https://api.pushover.net/1/messages.json',body:{user:recipient,message:grant.message,url:grant.url,priority:0},json:true,

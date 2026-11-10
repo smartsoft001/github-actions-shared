@@ -27,21 +27,16 @@ read test/other databases or rewrite/delete append-only history. Mongo collectio
 UPDATE still permits field changes within mutable heartbeat/reservation collections;
 this is not field-level protection from a compromised runtime credential.
 
-Atlas requires its [UI/API/CLI for roles](https://www.mongodb.com/docs/atlas/security-add-mongodb-roles/)
-and [database users](https://www.mongodb.com/docs/atlas/security-add-mongodb-users/),
-not Compass createUser/createRole. Role creation is an access grant requiring explicit
-approval. User password entry/confirmation/submission stays with Emil in the UI;
-never paste a password/token/URI into chat or Git. Atlas login is now verified. The authenticated UI confirmed Project 0
-(`63f8d3e1e58a946d793a9e9b`), ClusterN8n and the exact disabled registry binding.
-`observer-scoped-access-target.json` binds the template to that verified target,
-with each user scoped only to ClusterN8n. It remains non-executable (`apply=false`),
-with no users created or credential bindings. Both roles were saved after explicit owner action-time approval and their exact
-actions/resources were verified on the Atlas roles list. Both account forms are
-prepared, each with one matching custom role, zero built-ins and ClusterN8n scope.
-Passwords remain empty; Emil must enter and submit them. No accounts created.
-No collisions were observed. See
-`observer-scoped-atlas-preparation-receipt.json`. The two-role approval has been consumed; account password entry and submission
-remain with Emil. The target plan stays apply=false and does not create users.
+Atlas lists both SCRAM users in Project 0, each with its matching custom role
+in admin and access scoped to ClusterN8n. The roles grant privileges only on
+the listed collections in ai-os. The target plan is declarative and keeps
+`apply=false`. See `observer-scoped-atlas-preparation-receipt.json`.
+
+Two n8n credential forms are prepared in Connection String mode for database
+ai-os. Emil supplies the corresponding Atlas Drivers URI directly in each
+form and saves it. Use the Atlas SRV address, authSource=admin, standard TLS
+and URL-encoded username/password if required. Keep secrets in n8n. See
+[n8n MongoDB credential setup](https://docs.n8n.io/integrations/builtin/credentials/mongodb/).
 
 ## Why a private node
 
@@ -83,7 +78,11 @@ registry flags remain false, independently of preparedOnly.
   image must supply pinned mongodb6.22.0 and compatible Node/n8n, then restart only
   after separate approval of the exact artifacts and hosting route.
 - observer-ingress-prepared.workflow.json and observer-observe-prepared.workflow.json:
-  disabled manual probes with preparedOnly=true, no credentials or schedule.
+  disabled manual probes with preparedOnly=true, verifyOnly=true, and no credentials
+  or schedule. Once the private node is available and its matching credential is
+  bound, the manual probe can use preparedOnly=false and verifyOnly=true. It
+  connects with TLS, checks connectionStatus and closes without accessing
+  application collections or the Pushover route.
 - observer-heartbeat-ingress-unpublished.workflow.json: disabled Header Auth webhook,
   unconditional preparation gate, bounded packet-only projection, guarded custom node
   and reply after durable ingress. Auth and Mongo credentials unbound; no live endpoint.
@@ -92,11 +91,10 @@ registry flags remain false, independently of preparedOnly.
   loader test (existing Node24.16.0/n8n2.46.6). No host installation. Temporary SQLite/
   extensions removed after testing; OS sandbox refuses non-loopback networking.
 
-Before rollout: confirm n8n host/edition/custom-node deployment route; approve access
-creation in the correct Atlas project/cluster; Emil enters secrets directly into
-Atlas/n8n; verify both scoped credentials live; accept TLS and host independence;
-stage exact private node; create only unpublished guarded drafts and accept one
-manual read-only run. HTTP route-specific 2048-byte body limit, Header Auth and
+Before rollout: save the two scoped n8n credentials, confirm the host and
+private node deployment route, and stage the exact build. Bind each credential
+in its own unpublished manual probe, then verify TLS and effective privileges
+from the n8n host. Record the result and confirm host independence. HTTP route-specific 2048-byte body limit, Header Auth and
 no-redirect client need independent acceptance before ingress publication. Never
 remove guards or enable DB flags as an incidental install step. Publication/cadence
 and paid/model/finalizer execution remain separate decisions; Tele at planned release.

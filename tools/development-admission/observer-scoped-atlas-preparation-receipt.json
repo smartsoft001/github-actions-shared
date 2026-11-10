@@ -15,8 +15,7 @@
   "prepared_role_forms": 2,
   "role_forms_submitted": true,
   "roles_created": 2,
-  "users_created": 0,
-  "passwords_entered": false,
+  "users_created": 2,
   "database_writes": 0,
   "n8n_published": false,
   "model_calls": 0,
@@ -24,9 +23,14 @@
   "role_readback_verified": true,
   "role_approval": "explicit owner approval 2026-11-10",
   "account_forms_prepared": 2,
-  "account_forms_submitted": false,
+  "account_forms_submitted": true,
   "account_cluster_scope": "ClusterN8n",
   "account_builtin_roles": 0,
   "account_custom_roles_each": 1,
-  "password_entry": "owner handoff required"
+  "password_entry": "completed by owner in Atlas",
+  "account_readback_verified": true,
+  "account_authentication": "SCRAM",
+  "runtime_access_verified": false,
+  "n8n_scoped_mongo_credentials_found": 0,
+  "n8n_credential_forms_prepared": 2
 }

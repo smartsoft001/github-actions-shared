@@ -21,8 +21,8 @@
     "prepared_only_default": true,
     "installed": false,
     "files_sha256": {
-      "DevelopmentObserver.node.js": "fa0f9f338388ca7b6c5eb62499c5fac8eb02c14e6fffdf983148f9758ce97373",
-      "mongodb-observer-node-runtime.cjs": "a067b4f2ecc681c0648702a4fc8eece264e660ef36d10741b66a3fc72ca496f7",
+      "DevelopmentObserver.node.js": "317c551dea435d9cbf57d415b38342fa437eda273a1443b8f5195e0ee12cd796",
+      "mongodb-observer-node-runtime.cjs": "beb231ab4ad0f41e2fb8cd59b01febea33a0303251396d674b6d7189067daf45",
       "mongodb-observer-access.cjs": "ea5be4fe37dde43eb4052a9bc0dfd224d8f2b00d41165eb957eb187af355a419",
       "mongodb-observer.cjs": "d1e9f86bf7e4092143369c336a8d6c55f2f258e330b311d52568541893d03772",
       "mongodb-observer-schema.cjs": "4da6169d15734aec3e3b4d7aaae145caefcd0b78ea62507ed8533cc07719bde9",
