@@ -92,3 +92,28 @@ Probe archived; zero database writes. See `mongodb-readiness-receipt.json`.
 31 real local Mongo checks PASS (including namespace probe before collection creation
 and unrelated collection preserved/denied to watch),83 Node PASS. This is not
 write permission, schema provisioning or runtime publication acceptance.
+
+## Safe initialization helper — preparation only
+
+`mongodb-observer-initialize.cjs` takes an injected administrative Db; no connection,
+CLI, credential, listener or schedule. `prepare` checks exact database ai-os and
+absence of all five observer collection names, while permitting unrelated AI OS
+collections. It produces a production-scope disabled plan with binding, baseline,
+validators, seeds and SHA256. Existing collections, even empty, are refused.
+
+`initialize` requires explicit approved=true plus the reviewed exact plan hash.
+Without authorization it does not access the database. It rechecks namespace and
+creates only the five collections/three disabled state documents, no users/roles.
+Registry's unique seed is first, so concurrent initializers cannot both proceed.
+No collMod/update/upsert/drop/delete, migration, rollback or automatic retry.
+Unknown writes preserve partial state and require manual reconciliation; initialization
+is not atomic across all collections and a failed run may leave a disabled subset.
+Readback requires exact disabled seeds. Do not enable a partially initialized state.
+
+43 authenticated local Mongo checks and86 Node tests PASS, including concurrent
+initializers, preserved existing state, lost seed acknowledgement, refusal of re-run
+and unrelated collection preservation. Only fixture administrator performs destructive
+resets inside the ephemeral localhost DB; the initializer never does. Nothing applied
+to live ai-os. A real plan still needs the reviewed producer binding/baseline, scoped
+administrative execution route and explicit authorization. A synthetic plan hash
+is not a production approval. Users, runtime roles/auth and publication are separate.

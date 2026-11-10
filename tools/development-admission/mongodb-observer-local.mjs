@@ -12,6 +12,7 @@ const require=createRequire(import.meta.url);
 const {mongoPort,ingest,observe,DATABASE,COLLECTIONS}=require('./mongodb-observer.cjs');
 const {specification}=require('./mongodb-observer-schema.cjs');
 const {MONITOR,hash}=require('./external-observer-protocol.cjs');
+const {prepare,initialize}=require('./mongodb-observer-initialize.cjs');
 if(!process.env.OBSERVER_TEST_MONGOD||!process.env.OBSERVER_TEST_MONGODB_DRIVER)throw Error('Explicit local mongod binary and driver path required');
 const {MongoClient}=require(process.env.OBSERVER_TEST_MONGODB_DRIVER);
 const dir=await mkdtemp(join(tmpdir(),'observer-mongo-'));
@@ -36,9 +37,16 @@ try{
   check(namespace.length===1&&namespace[0].namespace_matches===true);
   check(!(await db.listCollections({name:COLLECTIONS.registry}).toArray()).length);
   const spec=specification(binding,new Date(Date.now()-190000),'manual-test');
-  for(const [name,validator] of Object.entries(spec.collections))await db.createCollection(COLLECTIONS[name],{validator,validationLevel:'strict',validationAction:'error'});
+  const proposal=await prepare(db,{binding,baseline:spec.seeds.registry.observe_since});
+  check((await initialize(db,proposal)).write_attempted===false);
+  check((await initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialized-disabled');
+  const seeded=await collection('registry').findOne({_id:MONITOR});
+  check(seeded.scope==='production'&&seeded.enabled===false);
+  check((await initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialization-refused');
+  check(JSON.stringify(await collection('registry').findOne({_id:MONITOR}))===JSON.stringify(seeded));
+  // Only the fixture administrator switches the local acceptance scope.
+  await collection('registry').updateOne({_id:MONITOR},{$set:{scope:'manual-test'}});
   for(const role of spec.roles)await db.command({createRole:role.role,privileges:role.privileges,roles:[]});
-  for(const [name,doc] of Object.entries(spec.seeds))await collection(name).insertOne(doc);
   for(const [user,role] of [['ingress','development_observer_ingress'],['watch','development_observer_watch']])await db.command({createUser:user,pwd,roles:[{role,db:DATABASE}]});
   const ingress=mongoPort(await open('ingress')),watch=mongoPort(await open('watch'));
   const manual={allowManualTest:true};let sends=0;
@@ -89,6 +97,19 @@ try{
   check((await db.collection('unrelated_fixture').findOne({_id:'preserve'})).value==='unchanged');
   const scoped=await open('watch');
   await assert.rejects(()=>scoped.db(DATABASE).collection('unrelated_fixture').findOne({}),e=>e.code===13);checks++;
+  // Destructive resets below affect only this ephemeral fixture, never initializer code.
+  for(const name of Object.values(COLLECTIONS))await db.collection(name).drop();
+  const race=await Promise.all([initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256}),initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})]);
+  check(race.filter(x=>x.action==='initialized-disabled').length===1);
+  check((await collection('registry').findOne({_id:MONITOR})).enabled===false);
+  check(await collection('notices').countDocuments()===0&&await collection('receipts').countDocuments()===0);
+  for(const name of Object.values(COLLECTIONS))await db.collection(name).drop();
+  const uncertain={databaseName:db.databaseName,listCollections:db.listCollections.bind(db),createCollection:db.createCollection.bind(db),
+    collection:name=>({insertOne:async(doc,opts)=>{await db.collection(name).insertOne(doc,opts);throw Error('LOST_SEED_ACK');}})};
+  check((await initialize(uncertain,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialization-uncertain-manual-review');
+  check((await collection('registry').findOne({_id:MONITOR})).enabled===false);
+  check((await initialize(db,proposal,{approved:true,planSha256:proposal.plan_sha256})).action==='initialization-refused');
+  check((await db.listCollections({name:{$in:Object.values(COLLECTIONS)}}).toArray()).length===1);
   console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
 }finally{
   await Promise.allSettled(clients.map(c=>c.close()));

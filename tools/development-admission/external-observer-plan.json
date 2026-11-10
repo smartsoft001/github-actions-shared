@@ -53,6 +53,15 @@
       "namespace_verified": true,
       "read_access_verified": true,
       "runtime_scope_verified": false
+    },
+    "initialization": {
+      "file": "mongodb-observer-initialize.cjs",
+      "prepared": true,
+      "live_applied": false,
+      "authorization_required": true,
+      "existing_observer_collection_policy": "refuse-even-empty",
+      "partial_failure": "preserve-disabled-state-and-require-manual-reconciliation",
+      "creates_users_or_roles": false
     }
   },
   "fallback": {
