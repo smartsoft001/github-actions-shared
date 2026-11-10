@@ -73,6 +73,12 @@ try {
     check(identities[i]+' exact permissions',Object.values(row).every(x=>x===true));
     creds.push({id:'synthetic-observer-'+i,name:'Synthetic observer '+i,type:'postgres',data:{host:'127.0.0.1',port,database:provision.DATABASE,user:identities[i],password:passwords[i],ssl:'disable',allowUnauthorizedCerts:false,maxConnections:1,sshTunnel:false}});
   }
+  await dedicated.query('GRANT UPDATE(enabled) ON public.development_observer_registry TO '+provision.INGRESS);
+  check('column-only activation privilege is detected',(await pools[0].query(provision.readiness(provision.INGRESS))).rows[0].registry_immutable===false);
+  await dedicated.query('REVOKE UPDATE(enabled) ON public.development_observer_registry FROM '+provision.INGRESS);
+  await dedicated.query('GRANT INSERT(attempted_at) ON public.development_observer_notices TO '+provision.WATCH);
+  check('column-only forged timestamp privilege is detected',(await pools[1].query(provision.readiness(provision.WATCH))).rows[0].cannot_forge_notice_time===false);
+  await dedicated.query('REVOKE INSERT(attempted_at) ON public.development_observer_notices FROM '+provision.WATCH);
   const nodes=preflight.definitions.map(([id,,type,typeVersion,config],index)=>({id:'fixture-'+id,type,typeVersion,...JSON.parse(JSON.stringify(config)),position:[index*200,0]}));
   nodes[0].disabled=false;
   nodes[1].parameters.jsCode='return [{json:{synthetic:true}}];';

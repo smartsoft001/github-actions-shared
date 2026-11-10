@@ -58,21 +58,25 @@ function readiness(role) {
  current_user='${role}' AS role_ok,
  NOT (SELECT rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication OR rolbypassrls FROM pg_catalog.pg_roles WHERE rolname=current_user) AS unprivileged,
  NOT pg_has_role(current_user,'${OWNER}','MEMBER') AS not_owner_member,
+ NOT EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members WHERE member=(SELECT oid FROM pg_catalog.pg_roles WHERE rolname=current_user)) AS no_role_memberships,
  NOT has_database_privilege(current_database(),'CREATE') AS cannot_create_schema,
  NOT has_database_privilege(current_database(),'TEMP') AS cannot_create_temp,
  has_table_privilege('public.development_observer_registry','SELECT') AS registry_read,
- NOT has_table_privilege('public.development_observer_registry','UPDATE') AS registry_immutable,
+ (NOT has_table_privilege('public.development_observer_registry','INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AND
+  NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid='public.development_observer_registry'::regclass AND attnum>0 AND NOT attisdropped AND has_column_privilege(attrelid,attname,'INSERT,UPDATE'))) AS registry_immutable,
  has_table_privilege('public.development_observer_latest','SELECT') AS heartbeat_read`;
   const specialized=role===INGRESS?`,
  (has_table_privilege('public.development_observer_latest','INSERT') AND has_table_privilege('public.development_observer_latest','UPDATE')) AS heartbeat_write,
  NOT has_table_privilege('public.development_observer_latest','DELETE') AS cannot_delete_heartbeat,
  NOT has_table_privilege('public.development_observer_notices','SELECT') AS no_notice_access`
   :`,
- NOT has_table_privilege('public.development_observer_latest','INSERT,UPDATE,DELETE') AS heartbeat_immutable,
+ (NOT has_table_privilege('public.development_observer_latest','INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') AND
+  NOT EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid='public.development_observer_latest'::regclass AND attnum>0 AND NOT attisdropped AND has_column_privilege(attrelid,attname,'INSERT,UPDATE'))) AS heartbeat_immutable,
  has_table_privilege('public.development_observer_notices','SELECT') AS notice_read,
  has_column_privilege('public.development_observer_notices','notice_id','INSERT') AS notice_insert,
  has_column_privilege('public.development_observer_notices','status','UPDATE') AS receipt_update,
  NOT has_table_privilege('public.development_observer_notices','DELETE') AS cannot_delete_notice,
+ NOT has_column_privilege('public.development_observer_notices','attempted_at','INSERT') AS cannot_forge_notice_time,
  NOT has_column_privilege('public.development_observer_notices','attempted_at','UPDATE') AS cannot_backdate_notice`;
   return 'SELECT '+common+specialized+';';
 }
