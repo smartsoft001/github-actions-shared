@@ -7,19 +7,23 @@ test('Mongo port requires bounded no-retry options and fixes the namespace',()=>
   let selected;
   const client={options:{retryWrites:false,retryReads:false,serverSelectionTimeoutMS:3000,socketTimeoutMS:3000},db:name=>{selected=name;return {collection:name=>name};}};
   assert.equal(mongo.mongoPort(client).collection('registry'),'registry');
-  assert.equal(selected,'ai_os_development_observer');
+  assert.throws(()=>mongo.mongoPort(client).collection('unrelated'));
+  assert.throws(()=>mongo.mongoPort(client).collection('ai_os_development_observer_registry'));
+  assert.equal(selected,'ai-os');
   assert.throws(()=>mongo.mongoPort({...client,options:{...client.options,retryWrites:true}}));
   assert.throws(()=>mongo.mongoPort({...client,options:{...client.options,socketTimeoutMS:0}}));
 });
 test('bootstrap is disabled, creates no users, roles split registry/heartbeat/history',()=>{
   const s=specification('b'.repeat(64),new Date());
+  assert.equal(s.database,'ai-os');
+  assert.ok(s.roles.every(r=>r.privileges.every(p=>p.resource.db==='ai-os'&&Object.values(mongo.COLLECTIONS).includes(p.resource.collection))));
   assert.equal(s.apply,false);assert.equal(s.users_created,0);assert.equal(s.seeds.registry.enabled,false);
   assert.equal(s.seeds.heartbeats.heartbeat,null);assert.equal(s.seeds.reservations.last_attempt,null);
   assert.deepEqual(Object.keys(s.collections).sort(),['heartbeats','notices','receipts','registry','reservations']);
   for(const role of s.roles){
     assert.ok(role.privileges.every(p=>!p.actions.includes('remove')&&!p.actions.includes('dropCollection')));
-    assert.deepEqual(role.privileges.find(p=>p.resource.collection==='registry').actions,['find']);
-    for(const p of role.privileges.filter(p=>['notices','receipts'].includes(p.resource.collection)))assert.deepEqual(p.actions,['find','insert']);
+    assert.deepEqual(role.privileges.find(p=>p.resource.collection===mongo.COLLECTIONS.registry).actions,['find']);
+    for(const p of role.privileges.filter(p=>[mongo.COLLECTIONS.notices,mongo.COLLECTIONS.receipts].includes(p.resource.collection)))assert.deepEqual(p.actions,['find','insert']);
   }
   assert.throws(()=>specification('invalid',new Date()));
 });

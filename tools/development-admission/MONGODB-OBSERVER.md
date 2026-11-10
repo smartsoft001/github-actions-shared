@@ -6,7 +6,7 @@ historical; they are not a deployment requirement or evidence for MongoDB.
 
 `mongodb-observer.cjs` accepts an already authorized MongoClient. It opens no
 connection, schedule, listener or credential. Namespace is fixed to
-`ai_os_development_observer`. Reads require majority; writes require majority,
+`ai-os`, selected by Emil. Collections have no prefix (his explicit instruction). Reads require majority; writes require majority,
 journaling and a 3s acknowledgement deadline. Both driver retry flags must be
 false, connection selection <=5s and socket timeout <=10s. Production TLS and
 physical separation from ai-os-server still require verification.
@@ -42,11 +42,23 @@ registry remain separately protected. Do not carry PG column-level claims forwar
 Mongo [single-document atomicity](https://www.mongodb.com/docs/manual/core/write-operations-atomicity/)
 is the mechanism used; no replica-set transaction requirement is introduced.
 
-Read-only n8n inventory found credential `18`, `MongoDB cloud`. Its host, database,
-privileges and failure domain are unverified. It is a candidate for administrative
-review only; no secret read, binding, cloud connection or database write occurred.
-Use two scoped credentials after confirming the target, not this unknown credential
-as a shortcut. The previous request to provision PostgreSQL is superseded.
+Emil selected the new n8n credential `bKjCNekrlGKLq8C2`,
+`MongoDB ai os (claude)`, then corrected the database name to `ai-os` and asked for
+no collection prefixes. The earlier credential18 (now `MongoDB n8n (cloud)`) is
+not selected. These are metadata identifiers, never exported secret values.
+
+`mongodb-readiness.n8n.ts` is a manual-only read-only probe using that credential.
+It projects `$collStats` to one boolean: namespace equals `ai-os.registry`, then
+asserts the result before a bounded one-document, projected registry query. It
+returns no customer documents, hostnames, credential values or connection string.
+No `$out`/`$merge`, insert, update, remove, collection/user creation or scheduling.
+The namespace stage can require `collStats` rights; failure is not a reason to grant
+broad privileges. This checks connectivity/selected namespace and read access only,
+not production least privilege, independent hosting, TLS configuration or readiness
+for publishing. The probe is archived after its manual attempt. Runtime remains
+unbound; separate ingress/watch scoped credentials are still required.
+Mongo's [$collStats stage](https://www.mongodb.com/docs/manual/reference/operator/aggregation/collstats/)
+provides namespace metadata; the local fixture also checks no collection creation.
 
 ## Reproduce without cloud, model or real notification
 
@@ -71,3 +83,12 @@ prepare non-destructive provisioning and exact scoped credential preflight;
 prepare native n8n ingress/watch/notification wiring and then separately authorize
 manual acceptance, publication and cadence. Current plan stays disabled/unbound.
 No active workflow changes, model, finalizer activation or Tele acceptance here.
+
+## Selected connection receipt — 10 November
+
+Manual native n8n probe sLW8tlfhYnxP6r1s / execution464841 SUCCESS: namespace
+`ai-os.registry` verified, registry read succeeded, reviewed monitor record absent.
+Probe archived; zero database writes. See `mongodb-readiness-receipt.json`.
+31 real local Mongo checks PASS (including namespace probe before collection creation
+and unrelated collection preserved/denied to watch),83 Node PASS. This is not
+write permission, schema provisioning or runtime publication acceptance.

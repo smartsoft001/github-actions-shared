@@ -1,7 +1,7 @@
 'use strict';
 // Reviewable admin specification only. No client, user, password or apply action.
 const {MONITOR,ISSUES}=require('./external-observer-protocol.cjs');
-const {DATABASE}=require('./mongodb-observer.cjs');
+const {DATABASE,COLLECTIONS}=require('./mongodb-observer.cjs');
 const hex={bsonType:'string',pattern:'^[a-f0-9]{64}$'};
 const monitor={bsonType:'string',enum:[MONITOR]};
 const date={bsonType:'date'};
@@ -25,7 +25,7 @@ const definitions={
   notices:{$jsonSchema:object({_id:hex,monitor_id:monitor,binding_sha256:hex,attempted_at:date,issues:reasons})},
   receipts:{$jsonSchema:object({_id:hex,provider_status:{enum:[1]},request:{bsonType:'string',pattern:'^[A-Za-z0-9-]{8,100}$'},acknowledged_at:date})},
 };
-const privilege=(collection,actions)=>({resource:{db:DATABASE,collection},actions});
+const privilege=(collection,actions)=>({resource:{db:DATABASE,collection:COLLECTIONS[collection]},actions});
 const roles=[
   {role:'development_observer_ingress',privileges:[privilege('registry',['find']),privilege('heartbeats',['find','update'])],roles:[]},
   {role:'development_observer_watch',privileges:[privilege('registry',['find']),privilege('heartbeats',['find']),
@@ -34,7 +34,7 @@ const roles=[
 function specification(binding,baseline,scope='production'){
   if(!/^[a-f0-9]{64}$/.test(binding)||!(baseline instanceof Date)||!Number.isFinite(baseline.getTime())
       ||!['production','manual-test'].includes(scope))throw Error('Reviewed Mongo bootstrap required');
-  return {database:DATABASE,collections:definitions,roles,
+  return {database:DATABASE,collection_names:COLLECTIONS,collections:definitions,roles,
     seeds:{registry:{_id:MONITOR,scope,binding_sha256:binding,enabled:false,ingress_verified:false,
       external_host_verified:false,fallback_verified:false,observe_since:baseline},
     heartbeats:{_id:MONITOR,binding_sha256:binding,revision:0,heartbeat:null},

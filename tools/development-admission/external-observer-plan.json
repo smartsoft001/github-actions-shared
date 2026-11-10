@@ -22,14 +22,15 @@
     "engine": "MongoDB",
     "must_be_outside_primary_host": true,
     "host": null,
-    "database": "ai_os_development_observer",
+    "database": "ai-os",
     "ingress_credential_id": null,
     "observer_credential_id": null,
     "schema_file": "mongodb-observer-schema.cjs",
     "adapter_file": "mongodb-observer.cjs",
     "candidate_existing_credential": {
-      "id": "18",
-      "name": "MongoDB cloud",
+      "id": "bKjCNekrlGKLq8C2",
+      "name": "MongoDB ai os (claude)",
+      "selected_by_user": true,
       "scope_verified": false,
       "bound": false
     },
@@ -37,7 +38,22 @@
     "runtime_can_change_registry_activation_flags": false,
     "reservations": "single-document revision CAS; majority+journaled write; no retry or upsert",
     "audit": "append-only notices and receipts; no TTL",
-    "native_n8n_binding_prepared": false
+    "native_n8n_binding_prepared": false,
+    "collection_names": [
+      "registry",
+      "heartbeats",
+      "reservations",
+      "notices",
+      "receipts"
+    ],
+    "collection_prefix": "",
+    "native_readiness_file": "mongodb-readiness.n8n.ts",
+    "read_only_preflight": {
+      "receipt_file": "mongodb-readiness-receipt.json",
+      "namespace_verified": true,
+      "read_access_verified": true,
+      "runtime_scope_verified": false
+    }
   },
   "fallback": {
     "route_id": "n8n-pushover-owner",
@@ -50,10 +66,12 @@
     "automatic_retry": false,
     "human_receipt_verified": false
   },
-  "live_n8n_workflows_created": 0,
+  "live_n8n_workflows_created": 1,
   "new_credentials_created": 0,
   "new_database_permissions": 0,
   "new_services_or_schedules": 0,
   "model_calls": 0,
-  "finalizer_activated": false
+  "finalizer_activated": false,
+  "archived_readonly_probes": 1,
+  "active_observer_workflows": 0
 }

@@ -1,7 +1,8 @@
 'use strict';
 // Injected MongoClient only. No connection, credential, schedule or automatic retry.
 const {MONITOR,ISSUES,packet,hash,boundedSend}=require('./external-observer-protocol.cjs');
-const DATABASE='ai_os_development_observer';
+const DATABASE='ai-os';
+const COLLECTIONS=Object.freeze(Object.fromEntries(['registry','heartbeats','reservations','notices','receipts'].map(name=>[name,name])));
 const wc={w:'majority',j:true,wtimeoutMS:3000};
 const ro={readConcern:{level:'majority'},maxTimeMS:3000};
 const seconds=d=>d instanceof Date?d.getTime()/1000:NaN;
@@ -10,7 +11,10 @@ function mongoPort(client){
       ||!Number.isInteger(client.options.serverSelectionTimeoutMS)||client.options.serverSelectionTimeoutMS<1||client.options.serverSelectionTimeoutMS>5000
       ||!Number.isInteger(client.options.socketTimeoutMS)||client.options.socketTimeoutMS<1||client.options.socketTimeoutMS>10000)throw Error('Bounded no-retry MongoClient required');
   const db=client.db(DATABASE);
-  return {collection:name=>db.collection(name)};
+  return {collection:name=>{
+    if(!Object.hasOwn(COLLECTIONS,name))throw Error('Unknown observer collection');
+    return db.collection(COLLECTIONS[name]);
+  }};
 }
 async function registry(store){
   const r=await store.collection('registry').aggregate([{$match:{_id:MONITOR}},{$set:{observer_now:'$$NOW'}}],ro).next();
@@ -100,4 +104,4 @@ async function observe(store,send,{allowManualTest=false,timeoutMs=10000}={}){
   }catch{/* Unknown delivery or acknowledgement never retries the grant. */}
   return {action:'attempted-once',delivery,human_receipt_verified:false,production_acceptance:false};
 }
-module.exports={DATABASE,mongoPort,ingest,observe};
+module.exports={DATABASE,COLLECTIONS,mongoPort,ingest,observe};

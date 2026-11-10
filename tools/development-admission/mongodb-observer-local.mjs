@@ -9,7 +9,7 @@ import net from 'node:net';
 import assert from 'node:assert/strict';
 import {setTimeout as delay} from 'node:timers/promises';
 const require=createRequire(import.meta.url);
-const {mongoPort,ingest,observe,DATABASE}=require('./mongodb-observer.cjs');
+const {mongoPort,ingest,observe,DATABASE,COLLECTIONS}=require('./mongodb-observer.cjs');
 const {specification}=require('./mongodb-observer-schema.cjs');
 const {MONITOR,hash}=require('./external-observer-protocol.cjs');
 if(!process.env.OBSERVER_TEST_MONGOD||!process.env.OBSERVER_TEST_MONGODB_DRIVER)throw Error('Explicit local mongod binary and driver path required');
@@ -30,10 +30,15 @@ try{
   assert.ok(bootstrap,'Local MongoDB startup');
   await bootstrap.db('admin').command({createUser:'root',pwd,roles:['root']});await bootstrap.close();
   const admin=await open('root'),db=admin.db(DATABASE),binding='b'.repeat(64);
+  const collection=name=>db.collection(COLLECTIONS[name]);
+  await db.collection('unrelated_fixture').insertOne({_id:'preserve',value:'unchanged'});
+  const namespace=await collection('registry').aggregate([{$collStats:{}},{$project:{_id:0,namespace_matches:{$eq:['$ns',DATABASE+'.registry']}}}]).toArray();
+  check(namespace.length===1&&namespace[0].namespace_matches===true);
+  check(!(await db.listCollections({name:COLLECTIONS.registry}).toArray()).length);
   const spec=specification(binding,new Date(Date.now()-190000),'manual-test');
-  for(const [name,validator] of Object.entries(spec.collections))await db.createCollection(name,{validator,validationLevel:'strict',validationAction:'error'});
+  for(const [name,validator] of Object.entries(spec.collections))await db.createCollection(COLLECTIONS[name],{validator,validationLevel:'strict',validationAction:'error'});
   for(const role of spec.roles)await db.command({createRole:role.role,privileges:role.privileges,roles:[]});
-  for(const [name,doc] of Object.entries(spec.seeds))await db.collection(name).insertOne(doc);
+  for(const [name,doc] of Object.entries(spec.seeds))await collection(name).insertOne(doc);
   for(const [user,role] of [['ingress','development_observer_ingress'],['watch','development_observer_watch']])await db.command({createUser:user,pwd,roles:[{role,db:DATABASE}]});
   const ingress=mongoPort(await open('ingress')),watch=mongoPort(await open('watch'));
   const manual={allowManualTest:true};let sends=0;
@@ -41,46 +46,49 @@ try{
   const concurrent=await Promise.all(Array.from({length:6},()=>observe(watch,sender,manual)));
   check(sends===1&&concurrent.filter(x=>x.delivery==='provider-accepted').length===1);
   check((await observe(watch,sender,manual)).action==='already-attempted');
-  check(await db.collection('notices').countDocuments()===1&&await db.collection('receipts').countDocuments()===1);
+  check(await collection('notices').countDocuments()===1&&await collection('receipts').countDocuments()===1);
   const now=Date.now()/1000;
   const packet={schema_version:1,monitor_id:MONITOR,binding_sha256:binding,sequence:1,cycle_id:'c'.repeat(32),cycle_finished_at:now-2,sent_at:now,monitor:'alive',delivery:'idle-unverified',issues:[]};
   check((await ingest(ingress,packet,manual)).action==='heartbeat-recorded');
-  const first=await db.collection('heartbeats').findOne({_id:MONITOR});
+  const first=await collection('heartbeats').findOne({_id:MONITOR});
   check((await ingest(ingress,packet,manual)).action==='duplicate-no-refresh');
-  check((await db.collection('heartbeats').findOne({_id:MONITOR})).heartbeat.received_at.getTime()===first.heartbeat.received_at.getTime());
+  check((await collection('heartbeats').findOne({_id:MONITOR})).heartbeat.received_at.getTime()===first.heartbeat.received_at.getTime());
   check((await ingest(ingress,{...packet,delivery:'pending'},manual)).action==='sequence-conflict');
   check((await ingest(ingress,{...packet,sequence:2},manual)).action==='cycle-replay-refused');
   check((await observe(watch,sender,manual)).action==='no-alert');
   for(const [store,collection,operation] of [[ingress,'registry','update'],[watch,'registry','update'],[ingress,'reservations','update'],[watch,'notices','update'],[watch,'notices','delete'],[watch,'receipts','update'],[watch,'receipts','delete']]){
     await assert.rejects(()=>operation==='delete'?store.collection(collection).deleteMany({}):store.collection(collection).updateOne({},{$set:{forbidden:true}}),e=>e.code===13);checks++;
   }
-  await assert.rejects(()=>db.collection('registry').updateOne({_id:MONITOR},{$set:{enabled:true}}),e=>e.code===121);checks++;
-  await db.collection('registry').updateOne({_id:MONITOR},{$set:{scope:'production'}});
+  await assert.rejects(()=>collection('registry').updateOne({_id:MONITOR},{$set:{enabled:true}}),e=>e.code===121);checks++;
+  await collection('registry').updateOne({_id:MONITOR},{$set:{scope:'production'}});
   check((await ingest(ingress,packet,manual)).action==='ingress-disabled');
   check((await observe(watch,sender,manual)).action==='observer-disabled');
-  await db.collection('registry').updateOne({_id:MONITOR},{$set:{scope:'manual-test'}});
+  await collection('registry').updateOne({_id:MONITOR},{$set:{scope:'manual-test'}});
   // Source stopped: verify freshness against Mongo's clock, not a new sender timestamp.
   const stale={...packet,cycle_finished_at:now-202,sent_at:now-200};
-  await db.collection('heartbeats').updateOne({_id:MONITOR},{$set:{heartbeat:{packet:stale,packet_sha256:hash(stale),received_at:new Date((now-200)*1000)}}});
+  await collection('heartbeats').updateOne({_id:MONITOR},{$set:{heartbeat:{packet:stale,packet_sha256:hash(stale),received_at:new Date((now-200)*1000)}}});
   check((await observe(watch,sender,manual)).action==='cooldown');
   // Isolated reset by fixture admin only: lost provider reply remains reserved.
-  await db.collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
-  await db.collection('notices').deleteMany({});await db.collection('receipts').deleteMany({});
+  await collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
+  await collection('notices').deleteMany({});await collection('receipts').deleteMany({});
   const lost=await observe(watch,async()=>{sends++;throw Error('SYNTHETIC_LOST_REPLY');},manual);
   check(lost.delivery==='unknown'&&(await observe(watch,sender,manual)).action==='already-attempted'&&sends===2);
   // Committed reservation, unknown audit append: never send or steal it on retry.
-  await db.collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
-  await db.collection('notices').deleteMany({});
+  await collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
+  await collection('notices').deleteMany({});
   const failingAudit={collection:name=>name==='notices'?{insertOne:async()=>{throw Error('SYNTHETIC_AUDIT_UNKNOWN');}}:watch.collection(name)};
   check((await observe(failingAudit,sender,manual)).action==='observer-state-unavailable');
   check((await observe(watch,sender,manual)).action==='already-attempted'&&sends===2);
   // Corrupted stored content cannot be accepted as healthy or trigger a sender.
-  await db.collection('heartbeats').updateOne({_id:MONITOR},{$set:{'heartbeat.packet_sha256':'d'.repeat(64)}});
+  await collection('heartbeats').updateOne({_id:MONITOR},{$set:{'heartbeat.packet_sha256':'d'.repeat(64)}});
   check((await observe(watch,sender,manual)).action==='observer-state-unavailable'&&sends===2);
-  await db.collection('heartbeats').deleteOne({_id:MONITOR});
+  await collection('heartbeats').deleteOne({_id:MONITOR});
   check((await ingest(ingress,packet,manual)).action==='heartbeat-refused');
   check((await observe(watch,sender,manual)).action==='observer-state-unavailable');
-  check(await db.collection('heartbeats').countDocuments()===0&&sends===2);
+  check(await collection('heartbeats').countDocuments()===0&&sends===2);
+  check((await db.collection('unrelated_fixture').findOne({_id:'preserve'})).value==='unchanged');
+  const scoped=await open('watch');
+  await assert.rejects(()=>scoped.db(DATABASE).collection('unrelated_fixture').findOne({}),e=>e.code===13);checks++;
   console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
 }finally{
   await Promise.allSettled(clients.map(c=>c.close()));
