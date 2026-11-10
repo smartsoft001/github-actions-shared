@@ -140,6 +140,11 @@ both core and cycle source and bind exact adapters/configuration before enabling
 No heartbeat/independent alert exists for a stopped monitor or unavailable sender;
 that delivery-health check is still an activation prerequisite.
 
+The next prepared component is described in [MONITOR-HEALTH.md](MONITOR-HEALTH.md):
+an optional journaled cycle wrapper, read-only health assessment and separately
+reserved watchdog alerts. It is tested offline, disabled and unbound to a real
+observer/sender; it does not close the independent runtime activation gate.
+
 ## Authorized MCP metadata mapping — prepared, no unattended session
 
 `producer_monitor_mcp.MetadataReader` maps the actual
