@@ -52,7 +52,7 @@ not a symlink), outside Git:
 The separately supplied owner-only JSON secret file has one `uri` field. Never
 paste its value into chat/argv/Git or export credentials from n8n for convenience.
 Use an approved existing administrator execution environment/access route. No
-such file/access has been created or verified by this package.
+such file has been created; the Compass route verified below needs none.
 
 ```sh
 # No connection, secret read or driver load:
@@ -82,9 +82,9 @@ CLI approval refusal and private config/no-network check tested; live TLS handsh
 actual administrative scope and CLI writes are NOT accepted. Receipt:
 `mongodb-admin-plan-local-receipt.json`.
 
-Next: review this source/plan, identify the administrative execution environment,
-confirm TLS/physical independence and scoped rights, then separately authorize a
-read-only admin preflight followed by exact-plan initialization. No live writes,
+Next: review this source/plan and the verified Compass route below; separately
+authorize exact-plan initialization. Scoped runtime rights, TLS/physical independence
+and runtime acceptance remain later gates. No live writes,
 publication, active n8n changes, services, model or finalizer activation here.
 Tele acceptance remains at the next planned release.
 
