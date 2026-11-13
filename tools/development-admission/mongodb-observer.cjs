@@ -92,16 +92,29 @@ async function observe(store,send,{allowManualTest=false,timeoutMs=10000}={}){
     grant={notice_id:id,route_id:'n8n-pushover-owner',message:'Zewnętrzna kontrola monitora: '+reasons.map(x=>ISSUES[x]).join('; ')+'.',
       url:'https://n8n.smartsoft.biz.pl',automatic_retry:false};
   }catch{return {action:'observer-state-unavailable',healthy:false};}
-  let delivery='unknown';
+  const result={action:'attempted-once',delivery:'unknown',human_receipt_verified:false,production_acceptance:false};
+  let receipt;
   try{
-    const receipt=await boundedSend(send,grant,timeoutMs);
-    if(receipt?.status===1&&typeof receipt.request==='string'&&/^[A-Za-z0-9-]{8,100}$/.test(receipt.request)){
-      const clock=await registry(store);
-      const ack=await store.collection('receipts').insertOne({_id:grant.notice_id,provider_status:1,request:receipt.request,
-        acknowledged_at:clock.observer_now},{writeConcern:wc,maxTimeMS:3000});
-      if(ack.acknowledged===true)delivery='provider-accepted';
-    }
-  }catch{/* Unknown delivery or acknowledgement never retries the grant. */}
-  return {action:'attempted-once',delivery,human_receipt_verified:false,production_acceptance:false};
+    receipt=await boundedSend(send,grant,timeoutMs);
+  }catch{return {...result,reason_code:'provider-transport-unconfirmed'};}
+  if(receipt?.status!==1||typeof receipt.request!=='string'||!/^[A-Za-z0-9-]{8,100}$/.test(receipt.request))
+    return {...result,reason_code:'provider-response-unconfirmed'};
+
+  const accepted={...result,delivery:'provider-accepted'};
+  let acceptedAt;
+  try{acceptedAt=(await registry(store)).observer_now;}
+  catch{return {...accepted,reason_code:'receipt-clock-unavailable'};}
+
+  const expected={_id:grant.notice_id,provider_status:1,request:receipt.request,acknowledged_at:acceptedAt};
+  try{
+    const receipts=store.collection('receipts');
+    const ack=await receipts.insertOne(expected,{writeConcern:wc,maxTimeMS:3000}).catch(()=>null);
+    if(ack?.acknowledged===true)return accepted;
+    // A lost write response may still correspond to a committed insert.
+    const stored=await receipts.findOne({_id:expected._id},ro);
+    if(stored?.provider_status===1&&stored.request===expected.request
+        &&seconds(stored.acknowledged_at)===seconds(acceptedAt))return accepted;
+  }catch{/* An uncertain receipt never authorizes another send. */}
+  return {...accepted,reason_code:'receipt-write-unconfirmed'};
 }
 module.exports={DATABASE,COLLECTIONS,mongoPort,ingest,observe};
