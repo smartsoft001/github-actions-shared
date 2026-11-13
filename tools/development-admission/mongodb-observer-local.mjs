@@ -84,7 +84,26 @@ try{
   await collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
   await collection('notices').deleteMany({});await collection('receipts').deleteMany({});
   const lost=await observe(watch,async()=>{sends++;throw Error('SYNTHETIC_LOST_REPLY');},manual);
-  check(lost.delivery==='unknown'&&(await observe(watch,sender,manual)).action==='already-attempted'&&sends===2);
+  check(lost.delivery==='unknown'&&lost.reason_code==='provider-transport-unconfirmed'
+    &&(await observe(watch,sender,manual)).action==='already-attempted'&&sends===2);
+  // Inject failure after the real MongoDB insert to model a lost write response.
+  await collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
+  await collection('notices').deleteMany({});
+  const lostWriteReply={collection:name=>{
+    const target=watch.collection(name);
+    return name==='receipts'?{
+      findOne:target.findOne.bind(target),
+      insertOne:async(...args)=>{await target.insertOne(...args);throw Error('SYNTHETIC_LOST_WRITE_REPLY');},
+    }:target;
+  }};
+  let writeReplySends=0;
+  const recovered=await observe(lostWriteReply,async()=>{
+    writeReplySends++;return {status:1,request:'synthetic-write-reply-0001'};
+  },manual);
+  check(recovered.delivery==='provider-accepted'&&recovered.reason_code===undefined);
+  check((await observe(watch,()=>assert.fail('duplicate send'),manual)).action==='already-attempted'&&writeReplySends===1);
+  check(await collection('receipts').countDocuments()===1);
+  await collection('receipts').deleteMany({});
   // Committed reservation, unknown audit append: never send or steal it on retry.
   await collection('reservations').updateOne({_id:MONITOR},{$set:{last_attempt:null}});
   await collection('notices').deleteMany({});
@@ -121,7 +140,7 @@ try{
   const candidateSeed=await collection('registry').findOne({_id:MONITOR});
   check(candidateSeed.binding_sha256===candidate.binding_sha256&&candidateSeed.enabled===false&&candidateSeed.scope==='production');
   check((await observe(watch,sender,manual)).action==='observer-disabled'&&sends===2);
-  console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
+  console.log(JSON.stringify({schema_version:1,result:'passed',database:'ephemeral-loopback-only',checks,authenticated_roles:2,parallel_observers:6,synthetic_sender_calls:sends+writeReplySends,real_provider_calls:0,cloud_connections:0,model_calls:0,production_changes:0}));
 }finally{
   await Promise.allSettled(clients.map(c=>c.close()));
   if(proc.exitCode===null&&proc.pid){proc.kill('SIGTERM');await Promise.race([new Promise(r=>proc.once('exit',r)),delay(10000).then(()=>{if(proc.exitCode===null)proc.kill('SIGKILL');})]);}
