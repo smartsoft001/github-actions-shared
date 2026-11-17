@@ -26,7 +26,7 @@ for(const w of baselines) {
   }
  });
  test(`${w.id}: ownership follows either UUID or key across wrong repository`,()=>{
-  for(const identity of [{id:registry.entries[0].issue_id,identifier:'GAL-9999'},{id:uuid(123),identifier:registry.entries[0].issue_key}]){
+  for(const entry of registry.entries)for(const identity of [{id:entry.issue_id,identifier:'GAL-9999'},{id:uuid(123),identifier:entry.issue_key}]){
    const p=input([{...issue(),...identity}]);p.data.projects.nodes[0].externalLinks.nodes[0].url='https://github.com/other/repository';
    assert.equal(execute(w,p)[0].json.candidates.length,0);
   }

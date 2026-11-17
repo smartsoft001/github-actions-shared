@@ -87,7 +87,7 @@ jobs:
     steps:
       - name: Check receiver admission without model
         id: guard
-        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@c88e5f9083775597f085f613854fb8a959fe7510
+        uses: smartsoft001/github-actions-shared/.github/actions/development-admission@566ab8c81ca674dbf2c7eab136dda3e85faaf35f
         with:
           issue_id: ${{ inputs.issue_id }}
           linear_api_key: ${{ secrets.LINEAR_API_KEY }}
