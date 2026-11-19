@@ -10,7 +10,7 @@ const uuid=i=>`00000000-0000-4000-8000-${i.toString(16).padStart(12,'0')}`;
 function issue(labels=['ordinary']) {return {id:uuid(100),identifier:'GAL-9999',title:'fixture',url:'https://linear.app/fixture',team:{id:uuid(200)},attachments:{nodes:[{title:'plan.md',url:'https://fixture.invalid/plan.md'}]},labels:{nodes:labels.map((name,i)=>({id:uuid(i+1),name})),pageInfo:{hasNextPage:false,endCursor:null}}};}
 function input(issues) {return {data:{projects:{nodes:[{name:'fixture',externalLinks:{nodes:[{label:'Code',url:'https://github.com/smartsoft001/galena-tele'}]},issues:{nodes:issues}}]}}};}
 function execute(w,payload,patched=true) {
- const code=patched?compile(copy(baselines)).changes.find(c=>c.workflowId===w.id).operations[1].value:w.nodes.find(n=>n.name==='Filter & Enrich').parameters.jsCode;
+ const code=patched?compile(copy(baselines)).changes.find(c=>c.workflowId===w.id).operations[1].parameters.jsCode:w.nodes.find(n=>n.name==='Filter & Enrich').parameters.jsCode;
  return JSON.parse(JSON.stringify(vm.runInNewContext('(function(){'+code+'})()',{$input:{first:()=>({json:payload})}},{timeout:1000})));
 }
 function stripTime(rows) {for(const r of rows)for(const c of r.json.candidates||[])delete c.triggeredAt;return rows;}
@@ -26,7 +26,7 @@ for(const w of baselines) {
   }
  });
  test(`${w.id}: ownership follows either UUID or key across wrong repository`,()=>{
-  for(const identity of [{id:registry.entries[0].issue_id,identifier:'GAL-9999'},{id:uuid(123),identifier:registry.entries[0].issue_key}]){
+  for(const entry of registry.entries)for(const identity of [{id:entry.issue_id,identifier:'GAL-9999'},{id:uuid(123),identifier:entry.issue_key}]){
    const p=input([{...issue(),...identity}]);p.data.projects.nodes[0].externalLinks.nodes[0].url='https://github.com/other/repository';
    assert.equal(execute(w,p)[0].json.candidates.length,0);
   }
@@ -48,14 +48,14 @@ for(const w of baselines) {
   assert.throws(()=>execute(w,p),e=>e.message==='Development producer: source read failed');
  });
  test(`${w.id}: updated query requests label identity and complete page information`,()=>{
-  const query=compile(copy(baselines)).changes.find(c=>c.workflowId===w.id).operations[0].value;
+  const query=compile(copy(baselines)).changes.find(c=>c.workflowId===w.id).operations[0].parameters.jsonBody;
   assert.match(query,/labels\(first: 100\) \{ nodes \{ id name \} pageInfo \{ hasNextPage endCursor \}/);
  });
 }
 test('compiler changes only four exact parameters, never executor, transport, credentials or activation',()=>{
  const plan=compile(copy(baselines));assert.equal(plan.apply,false);assert.equal(plan.model_calls,0);assert.equal(plan.source_writes,0);
  assert.equal(plan.changes.length,2);
- for(const c of plan.changes){assert.equal(c.operations.length,2);assert.deepEqual(c.operations.map(o=>o.path),['jsonBody','jsCode']);assert.ok(c.operations.every(o=>o.type==='setNodeParameter'));}
+ for(const c of plan.changes){assert.equal(c.operations.length,2);assert.deepEqual(c.operations.map(o=>Object.keys(o.parameters)[0]),['jsonBody','jsCode']);assert.ok(c.operations.every(o=>o.type==='updateNodeParameters' && o.replace===false));}
 });
 test('missing, duplicate, version, source and topology drift block compilation',()=>{
  for(const mutate of [w=>w.pop(),w=>w[1]=w[0],w=>w[0].active=false,w=>w[0].activeVersionId='changed',w=>w[0].nodes[0].name='changed',w=>w[0].connections.extra={main:[]}]){
@@ -80,5 +80,24 @@ test('fresh MCP reader rejects unpublished drafts and incomplete graph reads',()
   for(const mutate of [x=>x.activeVersion.sameAsDraft=false,x=>delete x.nodes,x=>delete x.versionId,x=>x.active=false]){
    const bad=copy(full);mutate(bad);assert.throws(()=>snapshotFromMcp(bad),/Full published graph/);
   }
+ }
+});
+
+
+test('merge operations preserve unrelated node parameters and never replace credentials',()=>{
+ const plan=compile(copy(baselines));
+ for(const w of baselines){
+  const actual=copy(w),expected=copy(w),ops=plan.changes.find(c=>c.workflowId===w.id).operations;
+  for(const op of ops){
+   assert.deepEqual(Object.keys(op).sort(),['nodeName','parameters','replace','type']);
+   const node=actual.nodes.find(n=>n.name===op.nodeName);
+   assert.equal(Object.keys(op.parameters).length,1);
+   assert.ok(['jsonBody','jsCode'].includes(Object.keys(op.parameters)[0]));
+   const original=copy(node);
+   node.parameters={...node.parameters,...op.parameters};
+   const restored=copy(node);for(const key of Object.keys(op.parameters))restored.parameters[key]=original.parameters[key];
+   assert.deepEqual(restored,original);
+  }
+  assert.deepEqual(actual.connections,expected.connections);
  }
 });

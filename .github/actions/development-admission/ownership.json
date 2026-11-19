@@ -12,6 +12,12 @@
       "issue_key": "GAL-1881",
       "repository": "smartsoft001/galena-tele",
       "reason": "completed-local-stub-acceptance"
+    },
+    {
+      "issue_id": "94a12e23-8b83-4836-ac78-86c2f639e4cf",
+      "issue_key": "GAL-1862",
+      "repository": "smartsoft001/galena-tele",
+      "reason": "prepared-linear-to-pr-pilot"
     }
   ]
 }

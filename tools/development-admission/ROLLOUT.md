@@ -109,3 +109,58 @@ Run `node --test tools/development-admission/*.test.cjs`.
 No live safety, delivery or autonomous acceptance is inferred from these tests.
 Tele release acceptance remains at the next planned release. The completed
 GAL-1881 and Shared admission probe must not be replayed.
+
+## Aktualizacja GAL-1862 — 17.11.2026
+
+Rejestr zawiera UUID `94a12e23-8b83-4836-ac78-86c2f639e4cf` i klucz
+`GAL-1862` dla `smartsoft001/galena-tele`. Stan Linear odczytano jako
+Backlog bez etykiet. Wpis rezerwuje sprawę dla przygotowywanego pilota.
+Akcja admission jest przypięta do commita
+`566ab8c81ca674dbf2c7eab136dda3e85faaf35f`, zawierającego nowy rejestr.
+
+Przeliczony plan ma digest
+`c3a3c0b19962d621dbd0788f623b432ec937c4864f67c8754c215099ec7bfdec`.
+Odczyt SQLite read-only potwierdził bazowe wersje obu producentów i zgodne
+wykonywalne grafy. W historii workflowów nazwa jest inna od bieżącej nazwy
+rekordu, dlatego porównano graf z nazwą bieżącą. Ref inventory obejmuje
+48 gałęzi i 292 tagi, zgodne przy powtórnym odczycie.
+
+162 testy Python i 79 Node PASS. Obie propozycje filtrów n8n blokują sprawy
+rejestru bez etykiet. Brama GitHub blokuje GAL-1862 przed odczytem Linear
+także przy obcym repo, a ten sam UUID z innym kluczem zatrzymuje po
+odczycie. Testy rolloutu obejmują wyłączenie obu wejść Tele przed stagingiem,
+weryfikację prac w toku oraz blokadę po ponownym włączeniu wejścia.
+
+Odczytane wrappery Tele nadal wywołują Shared `@v1`
+(`866b257a58acbcbd91adfb5da6e4036696ed1844`). Oba są aktywne. Kod v1
+uruchamia model bez bramy ownership. Samo scalenie tego pakietu nie
+przełącza tych wrapperów ani aktywnych grafów n8n. Publikacja nowego pilota
+wymaga rzeczywistego odcięcia starych wejść i świeżego odczytu. Nie
+uruchomiono modelu, dispatchu, zmian produkcyjnych ani finalizatora.
+
+## 19.11 — poprawiony format operacji MCP
+
+Operacje stagingu używają teraz `updateNodeParameters`, `parameters` z jednym
+polem i `replace:false`. Poprzednie `setNodeParameter` z gołą ścieżką pola
+zostało odrzucone przez MCP podczas osobnej poprawki obserwatora. Ten pakiet
+nie próbuje takiego zapisu na producentach. Aktualizowanie jednego pola przez
+merge zostało zastosowane przy tej osobnej, zatwierdzonej poprawce; akceptacja
+zapisu dokładnie tych czterech zmian pozostaje do okna stagingu.
+
+Wynikowy graf obu kandydatów jest niezmieniony. Zmiana reprezentacji operacji
+i kompilatora zmienia jednak digest planu na
+`25305882ecac0b439125038e0e22909bf745900d8f8e32d81434dd2ea0792dae`.
+Starego digestu `c3a3c0b1…` nie wolno użyć do tej wersji.
+
+`node tools/development-admission/rehearse-stage.cjs` przeprowadza pełną próbę
+**w lokalnym katalogu tymczasowym** na aktualnym `rollout-preview.json`.
+Bez zgody nie powstaje intencja. Syntetyczna zgoda na staging pozwala zasymulować
+pauzę obu producentów, odcięcie obu wejść Tele i dwie aktualizacje draftów.
+Po każdym z sześciu kroków restart z utraconą odpowiedzią nie ponawia operacji.
+Próba kończy się `staged-paused-awaiting-publication-approval`. Nie wywołuje
+API, modelu ani finalizatora; nie jest rzeczywistą zgodą ani testem MCP.
+Próba jest uruchamiana również w Shared offline CI.
+
+GAL-1862 ma już In Progress/AI Plan i zapisany plan. Historycznej rezerwacji
+nie usuwać ani nie traktować jako zgody na ponowny start. Wpis własności
+pozostaje do uzgodnienia przed scaleniem rejestru i wyborem nowego pilota.

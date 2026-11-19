@@ -87,8 +87,8 @@ function compile(snapshots, registry=JSON.parse(fs.readFileSync(registryFile,'ut
     const body=once(query.parameters.jsonBody,'labels(first: 20) { nodes { name } }',
       'labels(first: 100) { nodes { id name } pageInfo { hasNextPage endCursor } }');
     changes.push({workflowId:w.id,expectedActiveVersionId:w.activeVersionId,expectedDraftVersionId:w.draftVersionId,expectedFingerprint:digest(w),operations:[
-      {type:'setNodeParameter',nodeName:query.name,path:'jsonBody',value:body},
-      {type:'setNodeParameter',nodeName:filter.name,path:'jsCode',value:code}
+      {type:'updateNodeParameters',nodeName:query.name,parameters:{jsonBody:body},replace:false},
+      {type:'updateNodeParameters',nodeName:filter.name,parameters:{jsCode:code},replace:false}
     ]});
   }
   return {schema_version:1,apply:false,model_calls:0,source_writes:0,registry_sha256:digest(registry),changes};

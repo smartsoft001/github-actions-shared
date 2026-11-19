@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "observed_on": "2026-11-09",
-  "plan_sha256": "1c34cbd32b9191a21637c93f652b3a3dcc131e88c60ae06237335d69581a205b",
+  "observed_on": "2026-11-17",
+  "plan_sha256": "25305882ecac0b439125038e0e22909bf745900d8f8e32d81434dd2ea0792dae",
   "producer_versions": [
     {
       "id": "Kj0Bm4Q2XnRtKsn1",
@@ -28,16 +28,25 @@
       "state": "active"
     }
   ],
-  "branches": 46,
-  "tags": 278,
-  "refs_sha256": "272ffe32a1f33d2d6a8e0bf000e4cd66b7eb7bdf9d8c9071f1f25b933f735094",
+  "branches": 48,
+  "tags": 292,
+  "refs_sha256": "9019af5677fc0dcab040a286344f8283870aaef0d1c76f06791e28112666466f",
   "active_changes_performed": false,
   "model_calls": 0,
   "monitoring_readback_verified": false,
-  "offline_python_tests": 80,
-  "offline_node_tests": 54,
+  "offline_python_tests": 162,
+  "offline_node_tests": 79,
   "new_rollout_tests": 23,
   "offline_result": "pass",
   "live_mutations": 0,
-  "implementation_sha256": "843c361105e743a2eb2f271d72ba9bec7c57bbc13daf1d22a21b1ceed4d85dc3"
+  "implementation_sha256": "b1de57c74c782b9815e18cc63e4a5375f1e594b32bd4258c634718f590b14e11",
+  "observed_at": "2026-11-17T18:11:33.037Z",
+  "registry_sha256": "13954d4ba7053176430158f13cc0a8618ba5f4627773dc3e11079f2355075e44",
+  "ownership_action_commit": "566ab8c81ca674dbf2c7eab136dda3e85faaf35f",
+  "pilot_issue": "GAL-1862",
+  "production_isolation_verified": false,
+  "producer_active_graph_comparison": "Executable graph equal; workflow history name replaced with current entity name",
+  "isolation_status": "Offline candidate verified. Tele legacy workflows remain active and call unguarded Shared v1.",
+  "prepared_operation_shape": "updateNodeParameters with replace=false",
+  "live_operation_acceptance": "not attempted for producers"
 }

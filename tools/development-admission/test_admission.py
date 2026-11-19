@@ -74,13 +74,18 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(calls, [('fixture-secret', {'id': 'GAL-9999', 'after': None})])
 
     def test_enrolled_keys_are_blocked_even_in_wrong_repository_without_api(self):
-        for key in ('GAL-1858', 'GAL-1881'):
+        for key in ('GAL-1858', 'GAL-1881', 'GAL-1862'):
             with self.assertRaisesRegex(guard.Denied, 'coordinator-owned'):
                 self.run_guard(lambda *_: self.fail('network call'), key=key, repo='other/repository')
 
     def test_known_uuid_cannot_escape_by_identifier_change(self):
         with self.assertRaisesRegex(guard.Denied, 'coordinator-owned'):
             self.run_guard(lambda *_: page(identity='9022fa28-08d3-4291-bd99-dbcc1345abcb'))
+
+    def test_gal1862_uuid_cannot_escape_with_another_key_or_repository(self):
+        with self.assertRaisesRegex(guard.Denied, 'coordinator-owned'):
+            self.run_guard(lambda *_: page(identity='94a12e23-8b83-4836-ac78-86c2f639e4cf'),
+                           repo='other/repository')
 
     def test_skip_label_on_later_page_blocks(self):
         calls = []
