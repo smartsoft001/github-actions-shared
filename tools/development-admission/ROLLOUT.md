@@ -137,3 +137,30 @@ uruchamia model bez bramy ownership. Samo scalenie tego pakietu nie
 przełącza tych wrapperów ani aktywnych grafów n8n. Publikacja nowego pilota
 wymaga rzeczywistego odcięcia starych wejść i świeżego odczytu. Nie
 uruchomiono modelu, dispatchu, zmian produkcyjnych ani finalizatora.
+
+## 19.11 — poprawiony format operacji MCP
+
+Operacje stagingu używają teraz `updateNodeParameters`, `parameters` z jednym
+polem i `replace:false`. Poprzednie `setNodeParameter` z gołą ścieżką pola
+zostało odrzucone przez MCP podczas osobnej poprawki obserwatora. Ten pakiet
+nie próbuje takiego zapisu na producentach. Aktualizowanie jednego pola przez
+merge zostało zastosowane przy tej osobnej, zatwierdzonej poprawce; akceptacja
+zapisu dokładnie tych czterech zmian pozostaje do okna stagingu.
+
+Wynikowy graf obu kandydatów jest niezmieniony. Zmiana reprezentacji operacji
+i kompilatora zmienia jednak digest planu na
+`25305882ecac0b439125038e0e22909bf745900d8f8e32d81434dd2ea0792dae`.
+Starego digestu `c3a3c0b1…` nie wolno użyć do tej wersji.
+
+`node tools/development-admission/rehearse-stage.cjs` przeprowadza pełną próbę
+**w lokalnym katalogu tymczasowym** na aktualnym `rollout-preview.json`.
+Bez zgody nie powstaje intencja. Syntetyczna zgoda na staging pozwala zasymulować
+pauzę obu producentów, odcięcie obu wejść Tele i dwie aktualizacje draftów.
+Po każdym z sześciu kroków restart z utraconą odpowiedzią nie ponawia operacji.
+Próba kończy się `staged-paused-awaiting-publication-approval`. Nie wywołuje
+API, modelu ani finalizatora; nie jest rzeczywistą zgodą ani testem MCP.
+Próba jest uruchamiana również w Shared offline CI.
+
+GAL-1862 ma już In Progress/AI Plan i zapisany plan. Historycznej rezerwacji
+nie usuwać ani nie traktować jako zgody na ponowny start. Wpis własności
+pozostaje do uzgodnienia przed scaleniem rejestru i wyborem nowego pilota.

@@ -16,7 +16,7 @@ function buildPlan(workflows,tele){
  for(const expected of TELE){const hits=tele.workflows.filter(w=>String(w.id)===expected.id);if(hits.length!==1||hits[0].path!==expected.path||hits[0].state!=='active')throw Error('Tele workflow drift');}
  const producers=compiled.changes.map(change=>{
   const w=workflows.find(w=>w.id===change.workflowId),before=graph(w),after=clone(before);
-  for(const op of change.operations)after.nodes.find(n=>n.name===op.nodeName).parameters[op.path]=op.value;
+  for(const op of change.operations)Object.assign(after.nodes.find(n=>n.name===op.nodeName).parameters,op.parameters);
   return {id:w.id,baseline_version:w.activeVersionId,baseline_draft:w.versionId,before_sha256:digest(before),candidate_sha256:digest(after),operations:change.operations};
  });
  return {schema_version:1,prepared_only:true,implementation_sha256:IMPLEMENTATION_SHA,registry_sha256:compiled.registry_sha256,producers,tele:{repository:REPO,refs_sha256:tele.refs_sha256,workflows:clone(TELE)},model_calls:0};
