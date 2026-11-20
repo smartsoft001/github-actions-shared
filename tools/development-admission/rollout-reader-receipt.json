@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "read_only": true,
+  "plan_sha256": "25305882ecac0b439125038e0e22909bf745900d8f8e32d81434dd2ea0792dae",
+  "reader_sha256": "338939f57f611284e46ac3807d10bf0f3e3862eb3337aebd764a18369b1c0cc8",
+  "duration_seconds": 8.013000011444092,
+  "collection": {
+    "ref_count": 340,
+    "n8n_execution_rows": 0,
+    "github": [
+      {
+        "workflow_id": "271334799",
+        "pages": 2,
+        "rows": 130
+      },
+      {
+        "workflow_id": "273082025",
+        "pages": 1,
+        "rows": 24
+      }
+    ]
+  },
+  "observation": {
+    "observed_at": 1795090018.797,
+    "producers": [
+      {
+        "id": "Kj0Bm4Q2XnRtKsn1",
+        "active": true,
+        "active_version": "9470f519-6455-47bb-86f1-c23dfe8850bf",
+        "draft_version": "9470f519-6455-47bb-86f1-c23dfe8850bf",
+        "active_sha256": "581ba63949780fec121acf35a1d0c25848c8aecc0ac40f0c5219b9ce22bc964a",
+        "draft_sha256": "581ba63949780fec121acf35a1d0c25848c8aecc0ac40f0c5219b9ce22bc964a"
+      },
+      {
+        "id": "YfyZaVDeZspB8VgK",
+        "active": true,
+        "active_version": "24119461-d2ff-4233-9134-54acc8dd3834",
+        "draft_version": "24119461-d2ff-4233-9134-54acc8dd3834",
+        "active_sha256": "5e975174425c3459a4a066f087a2476d01da771651bea53e098170d900ff7a49",
+        "draft_sha256": "5e975174425c3459a4a066f087a2476d01da771651bea53e098170d900ff7a49"
+      }
+    ],
+    "tele": {
+      "repository": "smartsoft001/galena-tele",
+      "refs_sha256": "9019af5677fc0dcab040a286344f8283870aaef0d1c76f06791e28112666466f",
+      "workflows": [
+        {
+          "id": "271334799",
+          "path": ".github/workflows/ai-plan.yml",
+          "state": "active"
+        },
+        {
+          "id": "273082025",
+          "path": ".github/workflows/ai-impl.yml",
+          "state": "active"
+        }
+      ]
+    },
+    "inflight": {
+      "n8n": {
+        "complete": true,
+        "count": 0,
+        "rows": []
+      },
+      "github": {
+        "complete": true,
+        "count": 0,
+        "rows": []
+      }
+    }
+  },
+  "model_calls": 0,
+  "mutations": 0
+}
