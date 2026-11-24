@@ -110,3 +110,29 @@ tests use simulated APIs and an in-memory atomic store; they do not prove live
 PostgreSQL or n8n concurrency. These adapters
 are prepared for workflow integration. They do not install the PostgreSQL
 schema or register a workflow on a live n8n instance.
+
+### Prepared Tele report/card consumer
+
+The same `planCardUpdate` / `reconcileCard` and `createCardConnectors` now
+accept trusted host configuration `scope: {repository:'smartsoft001/galena-tele'}`.
+Supply scope as the second planner argument, third reconciler argument, and
+connector factory option. Default scope remains MVNO for existing callers.
+Neither a report nor a card selects this configuration. A Tele report passed
+to the old/default MVNO scope is rejected before any card append.
+
+All existing run/report/final-head/base/card/trace checks remain. Both scopes
+still expect a registered tests-only `development-tester-manual.yml` execution;
+this does not create that wrapper in Tele or accept the old historical
+calibration as a live CI report. Downloaded artifacts and Notion pagination
+are handled by the same connectors. Status, Decision and Answer are untouched.
+
+Hosts that already own a durable marker store can supply
+`claimMarker(cardId, marker) -> boolean`. The connector then uses that port
+without SQL; the legacy PostgreSQL option remains for existing consumers.
+The host must preserve the reservation after an unknown append. No database,
+role, account, workflow, scheduler, model or trace is provisioned here.
+
+Offline Tele tests cover concurrent callers, fresh connector instances, a lost
+response, a missing append that must not be repeated, a changed final head and
+wrong scope. They use synthetic API responses and a simulated host claim port;
+they do not prove a real Mongo write or an operational Tele Linear→PR cycle.

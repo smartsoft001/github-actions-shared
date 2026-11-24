@@ -1,12 +1,14 @@
 // HTTP, archive decoding and SQL are provided by the corresponding n8n nodes.
-const REPO = '/repos/smartsoft001/galena-mvno';
 const MAX_ARCHIVE = 1024 * 1024;
 const MAX_REPORT = 64 * 1024;
 const UUID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const RESERVE = `INSERT INTO development_card_markers (card_id, marker)
 VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING marker`;
 
-function createCardConnectors({ github, downloadZip, unzip, notion, postgres, readTrace }) {
+function createCardConnectors({ github, downloadZip, unzip, notion, postgres, readTrace, claimMarker, scope }) {
+  const repository = scope?.repository ?? 'smartsoft001/galena-mvno';
+  if (!['smartsoft001/galena-mvno', 'smartsoft001/galena-tele'].includes(repository)) throw new Error('Repository outside Development report scope');
+  const REPO = '/repos/' + repository;
   function cardPath(id, endpoint) {
     if (typeof id !== 'string' || !UUID.test(id)) throw new Error('Invalid enrolled card ID');
     return `/v1/${endpoint}/${id}`;
@@ -87,6 +89,11 @@ function createCardConnectors({ github, downloadZip, unzip, notion, postgres, re
 
     async reserveMarker(cardId, marker) {
       cardPath(cardId, 'blocks');
+      if (claimMarker) {
+        const claimed = await claimMarker(cardId, marker);
+        if (typeof claimed !== 'boolean') throw new Error('Invalid reservation result');
+        return claimed;
+      }
       const rows = await postgres(RESERVE, [cardId, marker]);
       if (!Array.isArray(rows) || rows.length > 1 || (rows.length === 1 && rows[0].marker !== marker)) {
         throw new Error('Invalid reservation result');
