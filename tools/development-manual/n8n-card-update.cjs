@@ -1,11 +1,12 @@
 // Planner for the trusted n8n consumer. Inputs come from its enrollment and API nodes.
-const repo = 'smartsoft001/galena-mvno';
 const langfuse = 'https://langfuse.smartsoft.biz.pl';
 const sha = /^[a-f0-9]{40}$/;
 const hash = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
-function planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace }) {
+function planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace }, scope) {
+  const repo = scope?.repository ?? 'smartsoft001/galena-mvno';
+  if (!['smartsoft001/galena-mvno', 'smartsoft001/galena-tele'].includes(repo)) throw new Error('Repository outside Development report scope');
   const check = (condition) => {
     if (!condition) throw new Error('Unverified Development report or card binding');
   };
@@ -57,17 +58,17 @@ if (typeof module !== 'undefined') module.exports = { planCardUpdate };
 
 // n8n supplies authenticated connectors and a durable, atomic reservation store.
 // A reservation survives an ambiguous append, so a retry only reads that block.
-async function reconcileCard(enrollment, io) {
+async function reconcileCard(enrollment, io, scope) {
   const { run, pull, report, card, trace } = await io.readEvidence(enrollment);
   // Validate the evidence before trusting any card marker. Every readback must
   // bind that marker to its expected URL, including on a no-write retry.
-  const desired = planCardUpdate({ enrollment, run, pull, report, card, existingKeys: [], trace });
+  const desired = planCardUpdate({ enrollment, run, pull, report, card, existingKeys: [], trace }, scope);
   const expectedLinks = desired.children.map((child) => ({
     key: child.paragraph.rich_text[1].text.content.trim().slice(1, -1),
     url: child.paragraph.rich_text[0].text.link.url,
   }));
   const existingKeys = await io.readMarkers(enrollment.cardId, expectedLinks);
-  const plan = planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace });
+  const plan = planCardUpdate({ enrollment, run, pull, report, card, existingKeys, trace }, scope);
   const outcomes = [];
   for (const child of plan.children) {
     const marker = child.paragraph.rich_text[1].text.content.trim();

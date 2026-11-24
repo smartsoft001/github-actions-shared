@@ -3,8 +3,7 @@ const { test } = require('node:test');
 const { createCardConnectors } = require('./n8n-card-connectors.cjs');
 const { reconcileCard } = require('./n8n-card-update.cjs');
 
-function sandbox() {
-  const repository = 'smartsoft001/galena-mvno';
+function sandbox(repository = 'smartsoft001/galena-mvno', useClaimPort = false) {
   const workflowSha = 'a'.repeat(40), sharedSha = 'b'.repeat(40);
   const cardId = '12345678-1234-1234-1234-123456789abc';
   const enrollment = { repository, workflowSha, sharedSha, workflowId: 1, runId: 2, pr: 3, cardId,
@@ -27,9 +26,15 @@ function sandbox() {
     trace_id: 'f'.repeat(32) };
   const blocks = [], reservations = new Set();
   let writes = 0, loseResponse = false, dropWrite = false, includeTrace = true;
+  const scope = { repository };
+  const claimMarker = async (id, marker) => {
+    const key = id + marker;if(reservations.has(key)) return false;reservations.add(key);return true;
+  };
   const connect = () => createCardConnectors({
+    scope, ...(useClaimPort ? { claimMarker } : {}),
     github: async (method, path) => {
       assert.equal(method, 'GET');
+      assert.ok(path.startsWith('/repos/' + repository + '/'));
       if (path.endsWith('/artifacts?per_page=100')) return { total_count: 1, artifacts: [
         { id: 9, name: 'development-ci-report-2-1', size_in_bytes: 10, expired: false, workflow_run: { id: 2 } },
       ] };
@@ -37,7 +42,7 @@ function sandbox() {
       if (path.endsWith('/pulls/3')) return pull;
       throw new Error('Unexpected GitHub route');
     },
-    downloadZip: async () => Buffer.from('zip-fixture'),
+    downloadZip: async url => { assert.equal(url, '/repos/' + repository + '/actions/artifacts/9/zip'); return Buffer.from('zip-fixture'); },
     unzip: async () => [{ name: 'ci-report.json', data: Buffer.from(JSON.stringify(report)) }],
     readTrace: async () => includeTrace ? trace : undefined,
     notion: async (method, path, body) => {
@@ -53,6 +58,7 @@ function sandbox() {
       return {};
     },
     postgres: async (sql, [id, marker]) => {
+      assert.equal(useClaimPort, false, 'existing host claim port must not fall back to SQL');
       assert.equal(id, cardId);
       assert.match(sql, /ON CONFLICT DO NOTHING/);
       const key = id + marker;
@@ -120,3 +126,27 @@ for (const [name, mutate] of [
     assert.equal(s.reservations.size, 0);
   });
 }
+
+const TELE_SCOPE = { repository: 'smartsoft001/galena-tele' };
+test('Tele uses the same report/trace reconciler and host claim port, once across concurrent retries', async () => {
+ const s=sandbox(TELE_SCOPE.repository,true);s.loseResponse();
+ const results=await Promise.all(Array.from({length:8},()=>reconcileCard(s.enrollment,s.connect(),TELE_SCOPE)));
+ assert.ok(results.every(r=>r.verified));assert.equal(s.writes,2);assert.equal(s.blocks.length,2);
+ assert.equal(s.blocks[0].paragraph.rich_text[0].text.link.url,'https://github.com/smartsoft001/galena-tele/actions/runs/2');
+ assert.equal((await reconcileCard(s.enrollment,s.connect(),TELE_SCOPE)).verified,true);assert.equal(s.writes,2);
+});
+test('Tele keeps an ambiguous missing append reserved without another write',async()=>{
+ const s=sandbox(TELE_SCOPE.repository,true);s.checksOnly();s.dropWrite();s.loseResponse();
+ assert.equal((await reconcileCard(s.enrollment,s.connect(),TELE_SCOPE)).verified,false);
+ assert.equal((await reconcileCard(s.enrollment,s.connect(),TELE_SCOPE)).verified,false);assert.equal(s.writes,1);
+});
+test('Tele evidence cannot select its own scope or update a card with a changed final head',async()=>{
+ const s=sandbox(TELE_SCOPE.repository,true);
+ await assert.rejects(reconcileCard(s.enrollment,s.connect()),/Unverified/);assert.equal(s.writes,0);
+ s.pull.head.sha='9'.repeat(40);await assert.rejects(reconcileCard(s.enrollment,s.connect(),TELE_SCOPE),/Unverified/);assert.equal(s.writes,0);
+});
+test('unsupported host scope and malformed claim results fail before a card append',async()=>{
+ assert.throws(()=>createCardConnectors({scope:{repository:'unrelated/project'}}),/scope/);
+ const ports=createCardConnectors({scope:TELE_SCOPE,claimMarker:async()=>({claimed:true})});
+ await assert.rejects(ports.reserveMarker('12345678-1234-1234-1234-123456789abc','marker'),/reservation/);
+});
